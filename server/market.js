@@ -1,6 +1,8 @@
 import { db, getSetting } from './db.js';
+import { selectProvider } from './providers.js';
 
-const apiKey = process.env.FINNHUB_API_KEY?.trim();
+const provider = selectProvider();
+const liveEnabled = Boolean(provider);
 const quotes = new Map();
 const clients = new Set();
 const historyCache = new Map();
@@ -57,22 +59,6 @@ export function resetQuote(symbol) {
   broadcast();
 }
 
-async function fetchFinnhubQuote(asset) {
-  try {
-    const url = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(asset.symbol)}&token=${encodeURIComponent(apiKey)}`;
-    const response = await fetch(url, { signal: AbortSignal.timeout(6500) });
-    if (!response.ok) return null;
-    const data = await response.json();
-    if (!Number.isFinite(data.c) || data.c <= 0 || !Number.isFinite(data.pc) || data.pc <= 0 || !data.t) return null;
-    return {
-      symbol: asset.symbol, price: round(data.c), change: round(data.c - data.pc),
-      changePercent: round((data.c - data.pc) / data.pc * 100), previousClose: round(data.pc),
-      open: round(data.o || data.pc), high: round(data.h || data.c), low: round(data.l || data.c),
-      volume: null, source: 'live', asOf: data.t * 1000,
-    };
-  } catch { return null; }
-}
-
 export function marketStatus() {
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
@@ -90,7 +76,8 @@ export function getSnapshot() {
   const mode = sources.size > 1 ? 'mixed' : sources.has('live') ? 'live' : 'demo';
   const notices = db.prepare('SELECT id, title, body, created_at AS createdAt FROM announcements WHERE active = 1 ORDER BY created_at DESC LIMIT 3').all();
   return {
-    assets, quotes: activeQuotes, mode, provider: mode === 'demo' ? 'Simulated' : 'Finnhub',
+    assets, quotes: activeQuotes, mode,
+    provider: mode === 'demo' ? 'Simulated' : provider?.label ?? 'Simulated',
     updatedAt, marketStatus: marketStatus(), tradingEnabled: getSetting('trading_enabled') === '1', notices,
   };
 }
@@ -128,10 +115,13 @@ export async function refreshMarket() {
   refreshing = true;
   try {
     const assets = getAssets(false);
-    if (apiKey) {
-      // One request per listed instrument every 30 seconds stays within the free quote rate limit.
-      const results = await Promise.all(assets.map(asset => fetchFinnhubQuote(asset)));
-      assets.forEach((asset, i) => quotes.set(asset.symbol, results[i] || demoQuote(asset, quotes.get(asset.symbol))));
+    if (provider) {
+      const fetched = await provider.quotes(assets.map(asset => asset.symbol));
+      for (const asset of assets) {
+        const quote = fetched.get(asset.symbol);
+        // A symbol the provider cannot price falls back to its own labeled simulation.
+        quotes.set(asset.symbol, quote || demoQuote(asset, quotes.get(asset.symbol)));
+      }
     } else {
       for (const asset of assets) quotes.set(asset.symbol, demoQuote(asset, quotes.get(asset.symbol)));
     }
@@ -144,9 +134,17 @@ export async function refreshMarket() {
 }
 
 export function startMarket() {
-  refreshMarket().catch(error => console.error('Market refresh failed:', error));
-  const timer = setInterval(() => refreshMarket().catch(error => console.error('Market refresh failed:', error)), apiKey ? 30000 : 7000);
+  const tick = () => refreshMarket().catch(error => console.error('Market refresh failed:', error));
+  tick();
+  const timer = setInterval(tick, provider ? provider.refreshMs : 7000);
+  console.log(provider
+    ? `Market data: ${provider.label} (real quotes, may be delayed), refreshing every ${Math.round(provider.refreshMs / 1000)}s.`
+    : 'Market data: simulated feed (no provider configured).');
   return () => clearInterval(timer);
+}
+
+export function marketProviderInfo() {
+  return { live: liveEnabled, id: provider?.id ?? 'demo', label: provider?.label ?? 'Simulated' };
 }
 
 function seededRandom(seed) {
@@ -192,25 +190,11 @@ function demoHistory(symbol, range) {
   return { symbol, range, source: 'demo', points };
 }
 
-async function finnhubHistory(symbol, range) {
-  const resolution = { '1D': '5', '1W': '60', '1M': 'D', '3M': 'D', '1Y': 'W' }[range];
-  const seconds = { '1D': 86400, '1W': 7 * 86400, '1M': 35 * 86400, '3M': 95 * 86400, '1Y': 370 * 86400 }[range];
-  const to = Math.floor(Date.now() / 1000);
-  const url = `https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(symbol)}&resolution=${resolution}&from=${to - seconds}&to=${to}&token=${encodeURIComponent(apiKey)}`;
-  try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(7500) });
-    if (!response.ok) return null;
-    const data = await response.json();
-    if (data.s !== 'ok' || !Array.isArray(data.c) || data.c.length < 3) return null;
-    return { symbol, range, source: 'live', points: data.c.map((value, i) => ({ time: data.t[i] * 1000, value: round(value) })) };
-  } catch { return null; }
-}
-
 export async function getHistory(symbol, range) {
   const cached = historyCache.get(`${symbol}:${range}`);
   if (cached && cached.expires > Date.now()) return cached.data;
   let data = null;
-  if (apiKey && getQuote(symbol)?.source === 'live') data = await finnhubHistory(symbol, range);
+  if (provider && getQuote(symbol)?.source === 'live') data = await provider.history(symbol, range);
   if (!data) data = demoHistory(symbol, range);
   historyCache.set(`${symbol}:${range}`, { data, expires: Date.now() + (data.source === 'live' ? 60000 : 20000) });
   return data;
