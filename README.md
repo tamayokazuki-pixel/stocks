@@ -20,8 +20,25 @@ On first run, a local SQLite database is created at `data/northstar.sqlite`. The
 ### Explore the demo
 
 - Click **Explore demo account** for a one-click sign-in to a seeded portfolio with virtual holdings and cash.
-- The development-only administrator login is **`admin@northstar.demo`** / **`NorthstarAdmin123!`**. Sign in with those credentials, then open **Admin console** in the sidebar.
+- The development-only administrator login is **`admin@northstar.demo`** / **`NorthstarAdmin123!`**. Sign in with those credentials, then open **Admin console** in the sidebar. The server also prints the admin sign-in address on startup (and warns when no administrator account exists).
 - These defaults are for local evaluation only. Do not expose a development server as a production service. In production, the demo login is disabled by default and no default admin is created.
+
+### Sessions and embedded previews
+
+Signing in stores an HttpOnly session cookie. A `SameSite=Lax` cookie is dropped by browsers whenever
+the app runs inside a **cross-site iframe** (an embedded preview or an `<iframe>` on another site),
+which silently signs the account out on the very next request — the admin console then falls back to
+"Administrator access only". Northstar therefore issues the session twice: the standard
+`SameSite=Lax` cookie for top-level use, and a `SameSite=None; Secure; Partitioned` companion cookie
+that survives the embedded case. Cookie flags follow the actual connection (HTTPS, including
+`X-Forwarded-Proto` behind a proxy) instead of `NODE_ENV`, so a `Secure` cookie is never issued over
+plain HTTP where the browser would discard it.
+
+Browsers that block **all** third-party storage (Safari, Firefox, Chrome incognito) drop both cookies
+in an embedded page. For that case the sign-in response also returns the session token: the client
+verifies the session right after signing in, and only if the cookie did not stick does it keep the
+token in `sessionStorage` and send it as `Authorization: Bearer`. It is cleared on sign-out and
+whenever the server rejects it. Opening the app in its own browser tab always uses cookies only.
 
 ## Market prices
 
@@ -62,7 +79,7 @@ for real-money trading or price-sensitive decisions.
 | Trading | Buy/sell whole shares with market orders; place limit orders; reserve buying power/shares while pending; automatically fill crossed limits on price ticks; review and cancel orders. |
 | Portfolio | Current equity, cash, holdings, allocation, daily movement, and unrealized position returns. |
 | Admin | Role-protected asset listing/visibility/featured controls and demo reference prices; suspend/reactivate traders; adjust virtual cash; publish/hide announcements; pause/resume all paper trading; audit log. |
-| Safety | Password hashes (bcrypt), random server-stored hashed session tokens, HttpOnly/SameSite cookies, request-verification header for mutations, login rate limiting, server-side validation and authorization, and transactional order/account updates. |
+| Safety | Password hashes (bcrypt), random server-stored hashed session tokens, HttpOnly cookies that also work in embedded previews, request-verification header for mutations, login rate limiting, server-side validation and authorization, and transactional order/account updates. |
 
 Cash is stored as integer cents and positions as whole shares. Pending buy orders reserve `quantity × limit price`; pending sell orders reserve shares. Hiding an asset cancels its pending orders. Pausing trading stops new orders and pending-order matching until resumed. This is a single-process SQLite application intended as a functional prototype, not a distributed trading engine.
 
@@ -73,7 +90,7 @@ npm run build
 ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD='a-unique-password-at-least-12-characters' NODE_ENV=production npm start
 ```
 
-The production server defaults to port **3000** (`PORT` overrides it). Place it behind HTTPS and use a persistent filesystem for `DATABASE_PATH`. Production sets the session cookie's `Secure` flag. Set **both** `ADMIN_EMAIL` and `ADMIN_PASSWORD` before the first startup to provision an admin account. A configured admin is created only when the email is not already registered. `DEMO_MODE=true` can explicitly enable the shared demo in production, but **do not do this for a public deployment**.
+The production server defaults to port **3000** (`PORT` overrides it). Place it behind HTTPS and use a persistent filesystem for `DATABASE_PATH`. Session cookies are marked `Secure` whenever the request arrives over HTTPS (the server trusts one proxy hop, so `X-Forwarded-Proto` is honoured). Set **both** `ADMIN_EMAIL` and `ADMIN_PASSWORD` before the first startup to provision an admin account. A configured admin is created only when the email is not already registered. `DEMO_MODE=true` can explicitly enable the shared demo in production, but **do not do this for a public deployment**.
 
 For a real production service, replace the prototype's shared/local SQLite setup with appropriate infrastructure; add email verification/password recovery, account protection, monitoring, backups, licensed data feeds, a broker/clearing integration, and legal/compliance checks before any real trades or deposits.
 
@@ -94,6 +111,6 @@ The integration test starts its own production-mode server against a temporary S
 - `server/market.js` — quote cache, simulated fallback, SSE updates, and historical chart data.
 - `server/providers.js` — real market-data adapters (Yahoo Finance, Finnhub) and provider selection.
 - `server/orders.js` — buying-power reservations, order filling, positions, and portfolio math.
-- `server/auth.js` — HttpOnly cookie sessions and role checks.
+- `server/auth.js` — HttpOnly cookie sessions (including the cross-site/embedded cookie and bearer fallback) and role checks.
 - `server/api.test.js` — end-to-end API integration coverage against an isolated database.
 - `server/providers.test.js` — market-data adapter parsing, fallback, and selection tests.

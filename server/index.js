@@ -56,8 +56,8 @@ api.post('/auth/register', authLimiter, (req, res) => {
   const id = Number(result.lastInsertRowid);
   for (const symbol of ['AAPL', 'NVDA', 'SPY']) db.prepare('INSERT INTO watchlists(user_id, symbol) VALUES(?, ?)').run(id, symbol);
   destroySession(req, res);
-  createSession(res, id);
-  res.status(201).json({ user: userById(id) });
+  const token = createSession(req, res, id);
+  res.status(201).json({ user: userById(id), token });
 });
 
 api.post('/auth/login', authLimiter, (req, res) => {
@@ -68,8 +68,8 @@ api.post('/auth/login', authLimiter, (req, res) => {
   if (!user || !bcrypt.compareSync(password, user.password_hash)) fail('Incorrect email or password.', 401);
   if (user.status !== 'active') fail('This account is currently suspended.', 403);
   destroySession(req, res);
-  createSession(res, user.id);
-  res.json({ user: userById(user.id) });
+  const token = createSession(req, res, user.id);
+  res.json({ user: userById(user.id), token });
 });
 
 api.post('/auth/demo', authLimiter, (req, res) => {
@@ -77,8 +77,8 @@ api.post('/auth/demo', authLimiter, (req, res) => {
   const user = db.prepare('SELECT id FROM users WHERE email = ?').get('alex@northstar.demo');
   if (!user) fail('The demo account is not available.', 404);
   destroySession(req, res);
-  createSession(res, user.id);
-  res.json({ user: userById(user.id) });
+  const token = createSession(req, res, user.id);
+  res.json({ user: userById(user.id), token });
 });
 
 api.post('/auth/logout', (req, res) => {

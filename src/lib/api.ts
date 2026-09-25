@@ -7,14 +7,40 @@ export class ApiError extends Error {
   }
 }
 
+// Session cookies are the primary credential. Some browsers block all storage for a cross-site
+// embed (a preview iframe), so sign-in falls back to sending the same token as a bearer credential
+// for the life of the tab. It is only stored when the server confirms the cookie did not stick.
+const TOKEN_KEY = 'northstar.session';
+let sessionToken: string | null = null;
+let tokenLoaded = false;
+
+function storedToken(): string | null {
+  if (!tokenLoaded) {
+    tokenLoaded = true;
+    try { sessionToken = sessionStorage.getItem(TOKEN_KEY); } catch { sessionToken = null; }
+  }
+  return sessionToken;
+}
+
+export function setSessionToken(token: string | null) {
+  sessionToken = token;
+  tokenLoaded = true;
+  try {
+    if (token) sessionStorage.setItem(TOKEN_KEY, token);
+    else sessionStorage.removeItem(TOKEN_KEY);
+  } catch { /* Private modes can refuse storage; the in-memory token still covers this page. */ }
+}
+
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const method = (options.method || 'GET').toUpperCase();
+  const token = storedToken();
   const response = await fetch(`/api${path}`, {
     ...options,
     credentials: 'same-origin',
     headers: {
       ...(options.body ? { 'Content-Type': 'application/json' } : {}),
       ...(['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) ? { 'X-Requested-With': 'northstar' } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
   });

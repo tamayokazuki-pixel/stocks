@@ -1,10 +1,10 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { api } from '../lib/api';
+import { api, ApiError, setSessionToken } from '../lib/api';
 import type { Account, MarketData, Order, User } from '../types';
 
-type AuthResponse = { user: User | null; demoEnabled?: boolean };
+type AuthResponse = { user: User | null; demoEnabled?: boolean; token?: string };
 type AppContextValue = {
   user: User | null;
   authLoading: boolean;
@@ -45,6 +45,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const onUnauthorized = () => {
       const current = queryClient.getQueryData<AuthResponse>(['auth']);
       if (!current?.user) return;
+      setSessionToken(null);
       queryClient.setQueryData(['auth'], { ...current, user: null });
       queryClient.removeQueries({ queryKey: ['account'] });
       queryClient.removeQueries({ queryKey: ['orders'] });
@@ -79,24 +80,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
     queryClient.invalidateQueries({ queryKey: ['watchlist'] });
   };
 
-  const finishSignIn = (result: AuthResponse) => {
-    queryClient.setQueryData(['auth'], { user: result.user, demoEnabled: authQuery.data?.demoEnabled });
+  // The sign-in response alone does not prove the session survived: an embedded (cross-site) page
+  // can have its session cookie dropped by the browser, which would sign the account straight back
+  // out on the next request. Confirm with the server, and fall back to the returned bearer token.
+  const finishSignIn = async (result: AuthResponse) => {
+    let confirmed = await api<AuthResponse>('/auth/me').catch(() => null);
+    if (confirmed && !confirmed.user && result.token) {
+      setSessionToken(result.token);
+      confirmed = await api<AuthResponse>('/auth/me').catch(() => null);
+    }
+    if (confirmed && !confirmed.user) {
+      setSessionToken(null);
+      throw new ApiError('This browser is blocking sign-in storage for this page. Open the app in its own browser tab and try again.', 401);
+    }
+    const user = confirmed?.user ?? result.user;
+    queryClient.setQueryData(['auth'], { user, demoEnabled: confirmed?.demoEnabled ?? authQuery.data?.demoEnabled });
     refreshPrivate();
     setAuthMode(null);
-    toast.success(`Welcome${result.user?.name ? `, ${result.user.name.split(' ')[0]}` : ''}!`);
+    toast.success(`Welcome${user?.name ? `, ${user.name.split(' ')[0]}` : ''}!`);
   };
 
   const signIn = async (email: string, password: string) => {
-    finishSignIn(await api<AuthResponse>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }));
+    await finishSignIn(await api<AuthResponse>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }));
   };
   const signUp = async (name: string, email: string, password: string) => {
-    finishSignIn(await api<AuthResponse>('/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password }) }));
+    await finishSignIn(await api<AuthResponse>('/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password }) }));
   };
   const demoSignIn = async () => {
-    finishSignIn(await api<AuthResponse>('/auth/demo', { method: 'POST' }));
+    await finishSignIn(await api<AuthResponse>('/auth/demo', { method: 'POST' }));
   };
   const signOut = async () => {
     await api('/auth/logout', { method: 'POST' });
+    setSessionToken(null);
     queryClient.setQueryData(['auth'], { user: null, demoEnabled: authQuery.data?.demoEnabled });
     queryClient.removeQueries({ queryKey: ['account'] });
     queryClient.removeQueries({ queryKey: ['orders'] });

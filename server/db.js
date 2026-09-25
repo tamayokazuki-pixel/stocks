@@ -164,15 +164,31 @@ if (demoEnabled && !db.prepare('SELECT id FROM users WHERE email = ?').get('alex
   });
 }
 
-const adminEmail = process.env.ADMIN_EMAIL || (process.env.NODE_ENV !== 'production' ? 'admin@northstar.demo' : '');
-const adminPassword = process.env.ADMIN_PASSWORD || (process.env.NODE_ENV !== 'production' ? 'NorthstarAdmin123!' : '');
-if (adminEmail && adminPassword && !db.prepare('SELECT id FROM users WHERE email = ?').get(adminEmail.toLowerCase())) {
-  if (adminPassword.length < 12) {
-    console.warn('ADMIN_PASSWORD must be at least 12 characters; admin was not created.');
-  } else {
-    db.prepare("INSERT INTO users(name, email, password_hash, role, cash_cents, created_at) VALUES(?, ?, ?, 'admin', ?, ?)")
-      .run('Northstar Admin', adminEmail.toLowerCase(), bcrypt.hashSync(adminPassword, 12), 10000000, Date.now());
+const usingDefaultAdmin = !process.env.ADMIN_EMAIL && process.env.NODE_ENV !== 'production';
+const adminEmail = process.env.ADMIN_EMAIL || (usingDefaultAdmin ? 'admin@northstar.demo' : '');
+const adminPassword = process.env.ADMIN_PASSWORD || (usingDefaultAdmin ? 'NorthstarAdmin123!' : '');
+if (adminEmail && adminPassword) {
+  const existing = db.prepare('SELECT id, role FROM users WHERE email = ?').get(adminEmail.toLowerCase());
+  if (existing && existing.role !== 'admin') {
+    console.warn(`${adminEmail} is already registered as a regular account, so no administrator was created.`);
+  } else if (!existing) {
+    if (adminPassword.length < 12) {
+      console.warn('ADMIN_PASSWORD must be at least 12 characters; admin was not created.');
+    } else {
+      db.prepare("INSERT INTO users(name, email, password_hash, role, cash_cents, created_at) VALUES(?, ?, ?, 'admin', ?, ?)")
+        .run('Northstar Admin', adminEmail.toLowerCase(), bcrypt.hashSync(adminPassword, 12), 10000000, Date.now());
+    }
   }
+}
+
+// Never leave "I cannot sign in to the admin console" to guesswork: say which account to use.
+const adminAccount = db.prepare("SELECT email FROM users WHERE role = 'admin' ORDER BY id LIMIT 1").get();
+if (!adminAccount) {
+  console.warn('No administrator account exists. Set ADMIN_EMAIL and ADMIN_PASSWORD (12+ characters) and restart to create one.');
+} else if (usingDefaultAdmin && adminAccount.email === 'admin@northstar.demo') {
+  console.log('Admin console sign-in (development only): admin@northstar.demo / NorthstarAdmin123!');
+} else {
+  console.log(`Admin console sign-in: ${adminAccount.email}`);
 }
 
 // Remove expired sessions on boot. Active sessions are also checked on every request.

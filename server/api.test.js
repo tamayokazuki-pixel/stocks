@@ -40,18 +40,21 @@ async function startIsolatedServer() {
   throw new Error(`Timed out waiting for server: ${logs}`);
 }
 
-async function request(base, route, { method = 'GET', body, cookie, verified = true } = {}) {
+async function request(base, route, { method = 'GET', body, cookie, token, verified = true } = {}) {
   const response = await fetch(`${base}/api${route}`, {
     method,
     headers: {
       ...(body ? { 'Content-Type': 'application/json' } : {}),
       ...(verified && method !== 'GET' ? { 'X-Requested-With': 'northstar' } : {}),
       ...(cookie ? { Cookie: cookie } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
   });
-  const sessionCookie = response.headers.getSetCookie().filter(value => value.startsWith('northstar_session=')).at(-1);
-  return { status: response.status, data: await response.json(), cookie: sessionCookie?.split(';')[0] };
+  const setCookies = response.headers.getSetCookie();
+  const sessionCookie = setCookies.filter(value => value.startsWith('northstar_session=')).at(-1);
+  const crossSiteCookie = setCookies.filter(value => value.startsWith('northstar_session_xs=')).at(-1);
+  return { status: response.status, data: await response.json(), cookie: sessionCookie?.split(';')[0], setCookies, crossSiteCookie };
 }
 
 test('account, trading, watchlist and admin flows are enforced by the API', { timeout: 30000 }, async () => {
@@ -104,6 +107,30 @@ test('account, trading, watchlist and admin flows are enforced by the API', { ti
     assert.equal(adminLogin.status, 200);
     const adminCookie = adminLogin.cookie;
     assert.equal((await request(base, '/admin/overview', { cookie: adminCookie })).status, 200);
+    // An embedded (cross-site) page only receives SameSite=None cookies, and browsers that block
+    // third-party storage outright need the bearer fallback. Both must reach the admin console.
+    assert.ok(adminLogin.crossSiteCookie, 'login should also issue a cross-site session cookie');
+    assert.match(adminLogin.crossSiteCookie, /SameSite=None/i);
+    assert.match(adminLogin.crossSiteCookie, /Secure/i);
+    assert.match(adminLogin.crossSiteCookie, /Partitioned/i);
+    assert.match(adminLogin.crossSiteCookie, /HttpOnly/i);
+    assert.equal((await request(base, '/admin/overview', { cookie: adminLogin.crossSiteCookie.split(';')[0] })).status, 200);
+    assert.ok(adminLogin.data.token, 'login should return a session token for cookie-less clients');
+    const byToken = await request(base, '/auth/me', { token: adminLogin.data.token });
+    assert.equal(byToken.data.user?.role, 'admin');
+    assert.equal((await request(base, '/admin/overview', { token: adminLogin.data.token })).status, 200);
+    assert.equal((await request(base, '/auth/me', { token: 'not-a-real-session-token' })).data.user, null);
+    // A Secure cookie over plain HTTP is discarded by the browser: flags follow the connection.
+    assert.ok(!/;\s*Secure/i.test(adminLogin.setCookies.find(value => value.startsWith('northstar_session='))),
+      'the primary session cookie must not be marked Secure on a plain HTTP connection');
+    assert.match(adminLogin.setCookies.find(value => value.startsWith('northstar_session=')), /SameSite=Lax/i);
+    const forwardedLogin = await fetch(`${base}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'northstar', 'X-Forwarded-Proto': 'https' },
+      body: JSON.stringify({ email: 'admin@tests.example', password: 'a-long-test-password-123' }),
+    });
+    assert.match(forwardedLogin.headers.getSetCookie().find(value => value.startsWith('northstar_session=')), /Secure/i,
+      'behind an HTTPS proxy the primary session cookie should be Secure');
     assert.equal((await request(base, '/admin/settings', { method: 'PATCH', cookie: adminCookie, body: { tradingEnabled: false } })).status, 200);
     assert.equal((await request(base, '/orders', { method: 'POST', cookie, body: { symbol: 'AAPL', side: 'buy', type: 'market', quantity: 1 } })).status, 403);
     await request(base, '/admin/settings', { method: 'PATCH', cookie: adminCookie, body: { tradingEnabled: true } });
