@@ -1,0 +1,36 @@
+import { useNavigate } from 'react-router-dom';
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
+import { ArrowRight, BriefcaseBusiness, CircleDollarSign, Layers3, TrendingUp, Wallet } from 'lucide-react';
+import { AuthGate } from '../components/AuthGate';
+import { AssetLogo, EmptyState, LoadingBlock, PageHeading, Trend } from '../components/UI';
+import { money, price, signedMoney, signedPercent } from '../lib/api';
+import { useApp } from '../state/AppContext';
+
+const allocationColors = ['#95e4c1', '#8da7ff', '#f1b97b', '#d3a8f0', '#89d3e8', '#f3a9af', '#bdd58d'];
+
+export function PortfolioPage() {
+  const { user, account, accountLoading, market } = useApp();
+  const navigate = useNavigate();
+  if (!user) return <div className="page"><PageHeading eyebrow="YOUR PORTFOLIO" title="Everything you own, in one view." description="Track positions, buying power, and the progress of your paper portfolio." /><AuthGate title="Your portfolio is waiting." description="Sign in to see your holdings, follow your performance, and make your next move." /></div>;
+  if (!account && accountLoading) return <div className="page"><PageHeading eyebrow="YOUR PORTFOLIO" title="Your portfolio." description="Your investments, all together." /><LoadingBlock height={420} /></div>;
+  if (!account) return null;
+  const positions = [...account.positions].sort((a, b) => b.marketValueCents - a.marketValueCents);
+  const costBasis = positions.reduce((sum, item) => sum + item.costBasisCents, 0);
+  const returnPercent = costBasis ? account.totalReturnCents / costBasis * 100 : 0;
+  return <div className="page portfolio-page">
+    <PageHeading eyebrow="YOUR PORTFOLIO" title="Your investments, all together." description="A clear picture of what you hold and how your paper portfolio is doing." action={<button className="button button--primary" onClick={() => navigate('/markets')}>Explore markets <ArrowRight size={17} /></button>} />
+    <div className="portfolio-hero">
+      <div className="portfolio-hero-left"><div className="portfolio-kicker"><span className="portfolio-kicker-dot" /> TOTAL ACCOUNT VALUE <span>·</span> PAPER USD</div><div className="portfolio-total">{money(account.equityCents)}</div><div className={`portfolio-day ${account.dayChangeCents >= 0 ? 'up' : 'down'}`}><TrendingUp size={17} /> {signedMoney(account.dayChangeCents)} ({signedPercent(account.dayChangePercent)}) <span>today</span></div><div className="portfolio-hero-divider" /><div className="portfolio-hero-metrics"><div><span>Invested value</span><strong>{money(account.portfolioValueCents)}</strong></div><div><span>Available to trade</span><strong>{money(account.availableCashCents)}</strong></div></div></div>
+      <div className="portfolio-allocation"><div className="allocation-chart">{positions.length ? <><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={positions} dataKey="marketValueCents" cx="50%" cy="50%" innerRadius={65} outerRadius={89} stroke="none" paddingAngle={3} isAnimationActive={false}>{positions.map((position, index) => <Cell key={position.symbol} fill={allocationColors[index % allocationColors.length]} />)}</Pie><Tooltip formatter={value => money(Number(value))} contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,.16)', fontFamily: 'DM Sans' }} /></PieChart></ResponsiveContainer><div className="allocation-center"><strong>{positions.length}</strong><span>{positions.length === 1 ? 'holding' : 'holdings'}</span></div></> : <div className="allocation-empty"><Layers3 size={32} /><span>No holdings yet</span></div>}</div><div className="allocation-legend"><span className="allocation-title">YOUR ALLOCATION</span>{positions.slice(0, 4).map((position, index) => <div key={position.symbol}><i style={{ background: allocationColors[index % allocationColors.length] }} /><span>{position.symbol}</span><strong>{account.portfolioValueCents ? (position.marketValueCents / account.portfolioValueCents * 100).toFixed(1) : 0}%</strong></div>)}</div></div>
+    </div>
+    <div className="portfolio-stats"><div className="portfolio-small-stat panel"><span className="small-stat-icon mint"><TrendingUp size={19} /></span><div><span>Position return</span><strong className={account.totalReturnCents >= 0 ? 'positive-text' : 'negative-text'}>{signedMoney(account.totalReturnCents)}</strong><small>{signedPercent(returnPercent)} vs. average purchase cost</small></div></div><div className="portfolio-small-stat panel"><span className="small-stat-icon blue"><CircleDollarSign size={19} /></span><div><span>Today's change</span><strong className={account.dayChangeCents >= 0 ? 'positive-text' : 'negative-text'}>{signedMoney(account.dayChangeCents)}</strong><small>Based on previous closing prices</small></div></div><div className="portfolio-small-stat panel"><span className="small-stat-icon violet"><Wallet size={19} /></span><div><span>Cash balance</span><strong>{money(account.cashCents)}</strong><small>{account.reservedCashCents ? `${money(account.reservedCashCents)} reserved for orders` : 'No cash reserved'}</small></div></div></div>
+    <section className="panel holdings-panel"><div className="panel-section-heading"><div><h3>Your holdings</h3><p>Every position, with the details that matter</p></div><span className="table-caption">{positions.length} {positions.length === 1 ? 'asset' : 'assets'} held</span></div>
+      {positions.length ? <div className="table-scroll"><table className="holdings-table"><thead><tr><th>Asset</th><th>Shares</th><th>Avg. cost</th><th>Market price</th><th>Market value</th><th>Return</th><th className="action-column"><span className="sr-only">Trade</span></th></tr></thead><tbody>{positions.map(position => {
+        const asset = market?.assets.find(item => item.symbol === position.symbol) || { symbol: position.symbol, color: position.color };
+        const returnPct = position.costBasisCents ? position.totalReturnCents / position.costBasisCents * 100 : 0;
+        return <tr key={position.symbol}><td><div className="table-asset"><AssetLogo asset={asset} size="sm" /><div><strong>{position.symbol}</strong><span>{position.name}</span></div></div></td><td>{position.quantity}</td><td>{money(position.averageCostCents)}</td><td>{price(position.price)}</td><td className="table-price">{money(position.marketValueCents)}</td><td><div className="return-cell"><strong className={position.totalReturnCents >= 0 ? 'positive-text' : 'negative-text'}>{signedMoney(position.totalReturnCents)}</strong><Trend value={returnPct} subtle /></div></td><td className="action-column"><button className="table-arrow" onClick={() => navigate(`/markets?symbol=${position.symbol}`)} aria-label={`Trade ${position.symbol}`}><ArrowRight size={17} /></button></td></tr>;
+      })}</tbody></table></div> : <EmptyState icon={<BriefcaseBusiness size={28} />} title="A blank canvas for your first investment" description="Your positions will appear here after you place a paper buy order." action="Browse markets" onAction={() => navigate('/markets')} />}
+    </section>
+    <p className="portfolio-footnote">Values are based on {market?.mode === 'demo' ? 'simulated prices' : 'indicative provider quotes'}. Returns exclude fees and are not a prediction of future results.</p>
+  </div>;
+}
