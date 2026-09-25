@@ -127,7 +127,7 @@ function Header({ onMenu }: { onMenu: () => void }) {
     </div>
     <div className="topbar-actions">
       <span className={`market-status ${market?.marketStatus.isOpen ? 'market-status--open' : ''}`} title="Indicative US regular-session hours, excluding holidays"><i />{market?.marketStatus.label || 'Checking market'}</span>
-      <span className={`data-mode ${market?.mode === 'live' ? 'data-mode--live' : ''}`} title={market?.mode === 'demo' ? 'Prices are simulated for practice' : 'Provider quotes may be delayed'}>{market?.mode === 'demo' ? 'Demo prices' : market?.mode === 'mixed' ? 'Mixed prices' : 'Provider quotes'}</span>
+      <span className={`data-mode ${market?.mode === 'live' ? 'data-mode--live' : ''}`} title={market?.mode === 'demo' ? 'Prices are simulated for practice' : `Real market data from ${market?.provider}. Quotes may be delayed.`}>{market?.mode === 'demo' ? 'Demo prices' : market?.mode === 'mixed' ? 'Mixed prices' : `Live · ${market?.provider}`}</span>
       <div className="popover-anchor" ref={notificationRef}>
         <button className="topbar-icon icon-button" aria-label="Announcements" aria-expanded={notificationsOpen} onClick={() => { setNotificationsOpen(!notificationsOpen); setProfileOpen(false); }}><Bell size={20} /><span className="notification-dot" /></button>
         {notificationsOpen && <div className="header-popover notices-popover"><div className="popover-title">Announcements <span>{market?.notices.length || 0}</span></div>
