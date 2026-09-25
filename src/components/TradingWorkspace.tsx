@@ -12,7 +12,7 @@ const ranges = ['1D', '1W', '1M', '3M', '1Y'] as const;
 type Range = typeof ranges[number];
 
 function ChartPanel({ asset, quote }: { asset: Asset; quote: Quote }) {
-  const { watchlist, toggleWatchlist, market } = useApp();
+  const { watchlist, toggleWatchlist } = useApp();
   const [range, setRange] = useState<Range>('1D');
   const { data: history, isLoading } = useQuery<History>({
     queryKey: ['history', asset.symbol, range],
@@ -52,7 +52,7 @@ function ChartPanel({ asset, quote }: { asset: Asset; quote: Quote }) {
         </AreaChart>
       </ResponsiveContainer> : <div className="chart-loading">Chart unavailable</div>}
     </div>
-    <div className="chart-source"><span className="source-dot" />{history?.source === 'live' ? 'Real market price history' : 'Illustrative demo chart'}<span className="chart-source-separator">·</span><Clock3 size={13} />{quote.source === 'live' ? `Live ${market?.provider ?? 'market'} quote · may be delayed` : 'Simulated prices'}</div>
+    <div className="chart-source"><span className="source-dot" />{history?.source === 'live' ? 'Provider price history' : 'Illustrative demo chart'}<span className="chart-source-separator">·</span><Clock3 size={13} />{quote.source === 'live' ? 'Provider quote may be delayed' : 'Simulated prices'}</div>
     <div className="chart-metrics">
       <div><span>Open</span><strong>{price(quote.open)}</strong></div>
       <div><span>Day high</span><strong>{price(quote.high)}</strong></div>

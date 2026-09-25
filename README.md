@@ -1,6 +1,6 @@
 # Northstar
 
-A responsive stock-market workspace for exploring equities and **paper trading**. It includes account creation and sign-in, streamed real-time quotes, charts, watchlists, a portfolio, market/limit orders, order history, and a separate administrator console. The interface takes inspiration from common broker-platform patterns (including FOREX.com's demo accounts and charting tools), but is an original implementation and is not affiliated with FOREX.com.
+A responsive stock-market workspace for exploring equities and **paper trading**. It includes account creation and sign-in, streamed quotes, charts, watchlists, a portfolio, market/limit orders, order history, and a separate administrator console. The interface takes inspiration from common broker-platform patterns (including FOREX.com's demo accounts and charting tools), but is an original implementation and is not affiliated with FOREX.com.
 
 > **Important:** Northstar does **not** execute real-money trades or connect to a stock exchange. All orders, cash balances, holdings, and fills are simulated. An actual brokerage product would require a licensed broker integration, KYC/AML onboarding, regulatory review, market-data rights, and production-grade operations. Never present paper fills as exchange executions.
 
@@ -25,33 +25,11 @@ On first run, a local SQLite database is created at `data/northstar.sqlite`. The
 
 ## Market prices
 
-Northstar shows **real market data out of the box — no API key required.** On startup the server
-selects a provider:
+Without a data-provider key, the app runs a **clearly labeled simulated market feed**. Quotes update every seven seconds and are pushed to browsers via Server-Sent Events; simulated charts are labeled **Illustrative demo chart**. This keeps the entire practice workflow usable with no credentials.
 
-| `MARKET_PROVIDER` | Behaviour |
-| --- | --- |
-| `auto` (default) | Finnhub when `FINNHUB_API_KEY` is set, otherwise Yahoo Finance. |
-| `yahoo` | Keyless real quotes and historical candles from Yahoo Finance's public chart endpoints. Refreshes every 15 seconds. |
-| `finnhub` | Requires `FINNHUB_API_KEY`. Refreshes every 30 seconds (free-tier friendly). |
-| `demo` | Forces the clearly labeled simulated feed. Useful offline and in tests. |
+To use indicative provider quotes, set `FINNHUB_API_KEY` in `.env`. The server fetches listed symbols from Finnhub approximately every 30 seconds and pushes updates to connected clients. It also attempts to load Finnhub historical candles for chart ranges; where candles are unavailable, charts fall back to clearly labeled illustrative data. Failed or unavailable symbol quotes fall back to individually labeled simulation, and the interface shows **Mixed prices** if both sources are present. Provider quotes may be delayed, subject to your plan and market hours. A session-open indicator uses US regular trading hours but does not account for exchange holidays.
 
-Quotes are polled server-side and pushed to every connected browser over Server-Sent Events, so all
-sessions see the same prices. Charts (1D/1W/1M/3M/1Y) use real historical candles from the same
-provider. The header badge reads **Live · <provider>** when real data is flowing.
-
-Real prices may be **delayed** (typically up to ~15 minutes, depending on exchange and provider) and
-the keyless Yahoo endpoints are public, unofficial, and carry no SLA or redistribution rights — fine
-for a personal or evaluation deployment, not for a commercial product. Review the provider's terms
-before public use, and buy a licensed feed for anything serious.
-
-If a symbol or the whole provider is unreachable, that symbol falls back to the **simulated feed**,
-labeled per-symbol; the interface shows **Mixed prices** when both are present, and charts that are
-not real market data are labeled **Illustrative demo chart**. A session-open indicator uses US
-regular trading hours and does not account for exchange holidays.
-
-**This is market-data integration, not broker execution.** Paper orders can be placed outside
-regular exchange hours and fill against the latest displayed quote. Do not use this implementation
-for real-money trading or price-sensitive decisions.
+**This is market-data integration, not broker execution.** Paper orders can be placed outside regular exchange hours and fill against the latest displayed indicative/simulated quote. Do not use this implementation for real-money trading or price-sensitive decisions.
 
 ## What works
 
@@ -91,9 +69,7 @@ The integration test starts its own production-mode server against a temporary S
 - `src/` — React/TypeScript pages, reusable chart/order components, styles, API client, and session/market state.
 - `server/index.js` — same-origin Express API, validation, authorization, and admin endpoints.
 - `server/db.js` — SQLite schema, local seed data, settings, and transaction helper.
-- `server/market.js` — quote cache, simulated fallback, SSE updates, and historical chart data.
-- `server/providers.js` — real market-data adapters (Yahoo Finance, Finnhub) and provider selection.
+- `server/market.js` — quote adapters, simulated fallback, SSE updates, and historical chart data.
 - `server/orders.js` — buying-power reservations, order filling, positions, and portfolio math.
 - `server/auth.js` — HttpOnly cookie sessions and role checks.
 - `server/api.test.js` — end-to-end API integration coverage against an isolated database.
-- `server/providers.test.js` — market-data adapter parsing, fallback, and selection tests.

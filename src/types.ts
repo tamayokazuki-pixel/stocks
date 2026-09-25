@@ -21,7 +21,6 @@ export type Quote = {
   high: number;
   low: number;
   volume: number | null;
-  currency?: string;
   source: 'live' | 'demo';
   asOf: number;
 };

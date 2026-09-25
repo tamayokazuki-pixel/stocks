@@ -31,6 +31,6 @@ export function PortfolioPage() {
         return <tr key={position.symbol}><td><div className="table-asset"><AssetLogo asset={asset} size="sm" /><div><strong>{position.symbol}</strong><span>{position.name}</span></div></div></td><td>{position.quantity}</td><td>{money(position.averageCostCents)}</td><td>{price(position.price)}</td><td className="table-price">{money(position.marketValueCents)}</td><td><div className="return-cell"><strong className={position.totalReturnCents >= 0 ? 'positive-text' : 'negative-text'}>{signedMoney(position.totalReturnCents)}</strong><Trend value={returnPct} subtle /></div></td><td className="action-column"><button className="table-arrow" onClick={() => navigate(`/markets?symbol=${position.symbol}`)} aria-label={`Trade ${position.symbol}`}><ArrowRight size={17} /></button></td></tr>;
       })}</tbody></table></div> : <EmptyState icon={<BriefcaseBusiness size={28} />} title="A blank canvas for your first investment" description="Your positions will appear here after you place a paper buy order." action="Browse markets" onAction={() => navigate('/markets')} />}
     </section>
-    <p className="portfolio-footnote">Values are based on {market?.mode === 'demo' ? 'simulated prices' : `live ${market?.provider} quotes (possibly delayed)`}. Returns exclude fees and are not a prediction of future results.</p>
+    <p className="portfolio-footnote">Values are based on {market?.mode === 'demo' ? 'simulated prices' : 'indicative provider quotes'}. Returns exclude fees and are not a prediction of future results.</p>
   </div>;
 }
