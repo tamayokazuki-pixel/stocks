@@ -95,3 +95,12 @@ export type AdminOverview = {
   notices: Notice[];
 };
 export type AuditEntry = { id: number; action: string; detail: string; actorName: string; targetName: string | null; createdAt: number };
+
+
+export type CashTransaction = {
+  id: number;
+  type: 'top_up' | 'withdrawal';
+  amountCents: number;
+  balanceAfterCents: number;
+  createdAt: number;
+};

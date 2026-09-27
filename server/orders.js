@@ -162,3 +162,39 @@ export function matchPendingOrders() {
     }
   }
 }
+
+
+const MAX_CASH_TRANSACTION_CENTS = 10_000_000; // $100,000 per simulated transaction.
+
+export function getCashTransactions(userId) {
+  return db.prepare(`SELECT id, type, amount_cents AS amountCents,
+    balance_after_cents AS balanceAfterCents, created_at AS createdAt
+    FROM cash_transactions WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 50`).all(userId);
+}
+
+export function createCashTransaction(userId, input) {
+  const type = input?.type;
+  const amountCents = input?.amountCents;
+  if (!['top_up', 'withdrawal'].includes(type)) fail('Choose top up or withdrawal.');
+  if (!Number.isSafeInteger(amountCents) || amountCents < 100 || amountCents > MAX_CASH_TRANSACTION_CENTS) {
+    fail('Enter an amount from $1.00 to $100,000.00.');
+  }
+
+  return transaction(() => {
+    const user = db.prepare('SELECT cash_cents AS cashCents, status FROM users WHERE id = ?').get(userId);
+    if (!user || user.status !== 'active') fail('This account cannot move cash.', 403);
+    if (type === 'withdrawal') {
+      const available = user.cashCents - reservedCash(userId);
+      if (amountCents > available) fail('Withdrawal exceeds available cash after pending order reserves.');
+      db.prepare('UPDATE users SET cash_cents = cash_cents - ? WHERE id = ?').run(amountCents, userId);
+    } else {
+      if (user.cashCents + amountCents > Number.MAX_SAFE_INTEGER) fail('This account has reached its virtual cash limit.');
+      db.prepare('UPDATE users SET cash_cents = cash_cents + ? WHERE id = ?').run(amountCents, userId);
+    }
+    const balanceAfterCents = type === 'top_up' ? user.cashCents + amountCents : user.cashCents - amountCents;
+    const createdAt = Date.now();
+    const result = db.prepare(`INSERT INTO cash_transactions(user_id, type, amount_cents, balance_after_cents, created_at)
+      VALUES(?, ?, ?, ?, ?)`).run(userId, type, amountCents, balanceAfterCents, createdAt);
+    return { id: Number(result.lastInsertRowid), type, amountCents, balanceAfterCents, createdAt };
+  });
+}

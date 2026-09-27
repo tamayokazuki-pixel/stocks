@@ -233,3 +233,62 @@ h1,h2,h3,h4,p { margin-top: 0; }
 @media(max-width:600px) { .topbar { height:64px;padding:0 17px; }.breadcrumb { gap:8px;font-size:11px; }.data-mode { display:none; }.topbar-getstarted { display:none; }.topbar-actions { gap:5px; }.main-content { padding:24px 16px;min-height:calc(100vh - 64px); }.page-heading { flex-direction:column;align-items:stretch;gap:15px;margin-bottom:22px; }.page-heading h1 { font-size:26px; }.page-heading p { font-size:11.5px; }.page-heading-action .button { padding:11px 15px;font-size:11px;width:100%; }.heading-info-pill { font-size:10px;padding:10px;width:max-content; }.stats-grid,.admin-stats { gap:9px; }.stat-card { min-height:133px;padding:13px 12px; }.stat-card-top { margin-bottom:10px; }.stat-value { font-size:17px;letter-spacing:-.6px; }.stat-footer { font-size:8px; }.stat-footer>span:last-child { display:none; }.stat-label { font-size:9px; }.section-heading h2 { font-size:17px; }.section-heading p { font-size:10px; }.workspace-section { margin-top:26px;scroll-margin-top:80px; }.chart-panel { padding:18px 15px 0; }.chart-metrics { margin:0 -15px;padding:14px 15px; }.chart-metrics>div+div { padding-left:8px; }.chart-metrics strong { font-size:9px; }.chart-metrics span { font-size:8px; }.chart-name-row h3 { font-size:13px; }.chart-symbol { font-size:9px; }.chart-big-price { font-size:27px; }.chart-value-row { align-items:flex-start;flex-direction:column;gap:12px;padding-top:18px; }.price-chart { height:228px; }.range-tabs { align-self:flex-end;margin-top:-44px; }.range-tabs button { padding:6px 7px; }.overview-lower { margin-top:24px; }.overview-rail { grid-template-columns:1fr; }.panel-section-heading { padding:18px 17px 16px; }.asset-table th:first-child,.asset-table td:first-child,.holdings-table th:first-child,.holdings-table td:first-child,.orders-table th:first-child,.orders-table td:first-child,.admin-table th:first-child,.admin-table td:first-child { padding-left:16px; }.asset-table td,.holdings-table td,.orders-table td,.admin-table td { padding-left:10px;padding-right:10px; }.table-controls { flex-wrap:wrap;padding:0 16px 15px; }.table-controls-right { width:100%; }.table-search { flex:1; }.bottom-cta { flex-wrap:wrap;padding:17px; }.bottom-cta .button { width:100%; }.portfolio-hero { padding:24px 20px; }.portfolio-total { font-size:33px; }.portfolio-hero-metrics { gap:28px; }.portfolio-allocation { justify-content:center; }.portfolio-stats,.market-summary-row,.pulse-grid,.order-stat-grid { grid-template-columns:1fr; }.market-summary-card:last-child { grid-column:auto; }.portfolio-small-stat { padding:13px 16px; }.portfolio-small-stat strong { font-size:15px; }.order-stat-grid { grid-template-columns:repeat(2,minmax(0,1fr));gap:9px; }.order-stat { padding:13px; }.order-stat-icon { width:34px;height:34px; }.order-stat strong { font-size:16px; }.insights-hero { padding:25px 22px;min-height:235px; }.insights-hero h2 { font-size:23px; }.insights-hero p { max-width:265px; }.insights-art { right:-100px;opacity:.32; }.pulse-card { min-height:180px; }.watchlist-summary { padding:18px; }.watchlist-summary-decoration { right:-10px; }.watchlist-summary h2 { font-size:16px; }.admin-control { align-items:flex-start;flex-wrap:wrap; }.admin-control .button { width:100%; }.admin-tabs button { padding:11px 13px; }.admin-stat { padding:14px;min-height:130px; }.admin-stat strong { font-size:17px; }.modal-card { padding:24px 20px; }.auth-modal { padding:27px 22px 22px; }.admin-form .form-row { grid-template-columns:1fr;gap:0; }.main-footer { flex-direction:column;gap:7px; }.gate-actions { flex-direction:column;width:100%; }.gate-actions .button { width:100%;max-width:260px; } }
 @media(max-width:390px) { .breadcrumb>span:first-child,.breadcrumb-slash { display:none; }.topbar-auth .button--ghost { display:inline-flex; }.chart-name-row .exchange-tag { display:none; }.range-tabs button { padding:5px; }.chart-metrics { gap:3px; }.stat-footer .trend { font-size:8px; }.asset-logo--lg { width:42px;height:42px; }.watchlist-summary-icon { display:none; } }
 @media(prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } *,*:before,*:after { animation-duration:.01ms !important;transition-duration:.01ms !important; } }
+
+/* Paper cash controls and activity */
+.cash-management { display:flex;align-items:center;justify-content:space-between;gap:24px;padding:22px 24px;margin:0 0 15px; }
+.cash-management-copy { display:flex;align-items:flex-start;gap:15px;min-width:0; }
+.cash-management-copy>.small-stat-icon { margin-top:2px; }
+.cash-management-copy>div { min-width:0; }
+.cash-eyebrow { color:#8494a6;font-size:8.5px;font-weight:800;letter-spacing:1.35px; }
+.cash-management h2 { font:800 15px/1.35 Manrope,sans-serif;letter-spacing:-.3px;margin:4px 0 4px;color:#26394f; }
+.cash-management p { color:#8998a9;font-size:10.5px;line-height:1.55;margin:0; }
+.cash-available { display:flex;align-items:center;gap:7px;color:#8090a2;font-size:9.5px;margin-top:10px;flex-wrap:wrap; }
+.cash-available strong { color:#3e526a;font-size:10px; }
+.cash-available small { flex-basis:100%;color:#a0adbb;font-size:9px;margin-top:-3px; }
+.cash-management-actions { display:flex;gap:9px;flex:none; }
+.cash-activity { margin-bottom:25px;overflow:hidden; }
+.cash-activity .panel-section-heading { padding-bottom:15px; }
+.cash-transaction-list { padding:0 22px 8px; }
+.cash-transaction-row { display:flex;align-items:center;gap:12px;min-height:63px;border-top:1px solid #f0f2f5; }
+.cash-transaction-icon { width:34px;height:34px;border-radius:10px;display:grid;place-items:center;flex:none; }
+.cash-transaction-icon--in { color:#118b6c;background:#e9f8f1; }
+.cash-transaction-icon--out { color:#6075cb;background:#eef1fc; }
+.cash-transaction-label { min-width:0;flex:1; }
+.cash-transaction-label strong,.cash-transaction-label small { display:block; }
+.cash-transaction-label strong { color:#3b4d62;font-size:10.5px;font-weight:700; }
+.cash-transaction-label small,.cash-transaction-balance small { color:#9aa7b5;font-size:9px;margin-top:4px; }
+.cash-transaction-amount { color:#47576b;font-size:11px;white-space:nowrap; }
+.cash-transaction-balance { display:flex;flex-direction:column;align-items:flex-end;min-width:95px; }
+.cash-transaction-balance strong { color:#6e7e90;font-size:9.5px;margin-top:3px; }
+.cash-activity-empty { color:#96a3b2;font-size:10.5px;text-align:center;padding:25px 15px 30px; }
+.cash-modal { max-width:440px; }
+.cash-modal-icon { width:48px;height:48px;display:grid;place-items:center;border-radius:15px;margin-bottom:17px; }
+.cash-modal-icon--in { color:#108968;background:#e6f7ee; }
+.cash-modal-icon--out { color:#526cce;background:#edf0ff; }
+.cash-modal h2 { font:800 21px Manrope,sans-serif;letter-spacing:-.75px;margin:5px 0 8px; }
+.cash-modal-description { color:#8998a9;font-size:10.5px;line-height:1.6;margin:0 0 19px; }
+.cash-modal-balance { display:flex;align-items:center;justify-content:space-between;padding:13px 14px;border:1px solid #edf0f4;border-radius:9px;background:#f8fafc;margin-bottom:18px; }
+.cash-modal-balance span { color:#8796a7;font-size:10px; }
+.cash-modal-balance strong { color:#30445b;font:800 13px Manrope,sans-serif; }
+.cash-amount-label { display:flex;justify-content:space-between;color:#53657a;font-size:10.5px;font-weight:700;margin-bottom:7px; }
+.cash-amount-label span { color:#9aa7b5;font-size:9.5px;font-weight:500; }
+.cash-amount-input { display:flex;align-items:center;gap:7px;height:47px;border:1px solid #dfe6ef;border-radius:9px;padding:0 13px; }
+.cash-amount-input:focus-within { border-color:#91a5ef;box-shadow:0 0 0 3px rgba(64,95,224,.08); }
+.cash-amount-input>span { color:#8291a3;font-size:17px; }
+.cash-amount-input input { width:100%;height:100%;border:0;outline:0;background:transparent;color:#253a51;font:700 17px Manrope,sans-serif; }
+.cash-amount-input input::-webkit-inner-spin-button { appearance:none; }
+.cash-amount-hint { display:block;color:#a0acb9;font-size:9px;line-height:1.5;margin-top:7px; }
+.cash-modal-error { color:#c74f5a;font-size:10px;margin:8px 0 0; }
+.cash-modal-disclosure { display:flex;align-items:flex-start;gap:7px;background:#f3f6fb;color:#8493a4;padding:11px;border-radius:8px;font-size:9px;line-height:1.55;margin:16px 0; }
+.cash-modal-disclosure svg { flex:none;margin-top:1px;color:#7487cc; }
+.cash-modal-submit { width:100%;margin-top:2px; }
+@media(max-width:600px) {
+  .cash-management { align-items:stretch;flex-direction:column;padding:18px;margin-bottom:12px;gap:16px; }
+  .cash-management-actions { width:100%; }
+  .cash-management-actions .button { flex:1;padding:9px 10px;font-size:10px; }
+  .cash-transaction-list { padding:0 15px 6px; }
+  .cash-transaction-row { gap:9px; }
+  .cash-transaction-balance { display:none; }
+  .cash-transaction-amount { font-size:10px; }
+  .cash-modal { padding:24px 20px; }
+}

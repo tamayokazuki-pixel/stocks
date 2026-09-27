@@ -59,12 +59,13 @@ for real-money trading or price-sensitive decisions.
 | --- | --- |
 | Markets | Browse/search/filter/sort stocks and ETFs; live-updating price panels; selectable 1D/1W/1M/3M/1Y charts; market pulse. |
 | Accounts | Register, sign in, sign out, or enter the development demo; private portfolio and watchlist. New accounts receive $100,000 in **virtual** buying power. |
+| Cash | Top up virtual paper-trading cash or withdraw unreserved cash; review a per-account activity history. These are simulated balance adjustments only—no bank, card, or payment processor is connected. Each adjustment is $1–$100,000. |
 | Trading | Buy/sell whole shares with market orders; place limit orders; reserve buying power/shares while pending; automatically fill crossed limits on price ticks; review and cancel orders. |
 | Portfolio | Current equity, cash, holdings, allocation, daily movement, and unrealized position returns. |
 | Admin | Role-protected asset listing/visibility/featured controls and demo reference prices; suspend/reactivate traders; adjust virtual cash; publish/hide announcements; pause/resume all paper trading; audit log. |
 | Safety | Password hashes (bcrypt), random server-stored hashed session tokens, HttpOnly/SameSite cookies, request-verification header for mutations, login rate limiting, server-side validation and authorization, and transactional order/account updates. |
 
-Cash is stored as integer cents and positions as whole shares. Pending buy orders reserve `quantity × limit price`; pending sell orders reserve shares. Hiding an asset cancels its pending orders. Pausing trading stops new orders and pending-order matching until resumed. This is a single-process SQLite application intended as a functional prototype, not a distributed trading engine.
+Cash is stored as integer cents and positions as whole shares. Cash top-ups and withdrawals are virtual ledger entries; withdrawals cannot consume funds reserved by pending buy orders. Pending buy orders reserve `quantity × limit price`; pending sell orders reserve shares. Hiding an asset cancels its pending orders. Pausing trading stops new orders and pending-order matching until resumed. This is a single-process SQLite application intended as a functional prototype, not a distributed trading engine.
 
 ## Production build
 
@@ -75,7 +76,7 @@ ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD='a-unique-password-at-least-12-char
 
 The production server defaults to port **3000** (`PORT` overrides it). Place it behind HTTPS and use a persistent filesystem for `DATABASE_PATH`. Production sets the session cookie's `Secure` flag. Set **both** `ADMIN_EMAIL` and `ADMIN_PASSWORD` before the first startup to provision an admin account. A configured admin is created only when the email is not already registered. `DEMO_MODE=true` can explicitly enable the shared demo in production, but **do not do this for a public deployment**.
 
-For a real production service, replace the prototype's shared/local SQLite setup with appropriate infrastructure; add email verification/password recovery, account protection, monitoring, backups, licensed data feeds, a broker/clearing integration, and legal/compliance checks before any real trades or deposits.
+For a real production service, replace the prototype's shared/local SQLite setup with appropriate infrastructure; add email verification/password recovery, account protection, monitoring, backups, licensed data feeds, a regulated payments and brokerage integration, and legal/compliance checks before any real trades, deposits, or withdrawals. The cash controls in this prototype never move real money.
 
 ## Checks
 

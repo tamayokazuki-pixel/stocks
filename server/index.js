@@ -10,7 +10,7 @@ import { rateLimit } from 'express-rate-limit';
 import { db, demoEnabled, transaction, getSetting, setSetting, audit } from './db.js';
 import { createSession, destroySession, getUser, requireAuth, requireAdmin } from './auth.js';
 import { getAsset, getAssets, getHistory, getQuote, getSnapshot, publishMarketUpdate, resetQuote, setOrderMatcher, startMarket, subscribeToMarket } from './market.js';
-import { cancelOrder, getAccountSummary, getOrders, matchPendingOrders, placeOrder, reservedCash } from './orders.js';
+import { cancelOrder, createCashTransaction, getAccountSummary, getCashTransactions, getOrders, matchPendingOrders, placeOrder, reservedCash } from './orders.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -97,6 +97,11 @@ api.get('/market/:symbol/history', async (req, res) => {
 });
 
 api.get('/account', requireAuth, (req, res) => res.json(getAccountSummary(req.user.id)));
+api.get('/account/cash-transactions', requireAuth, (req, res) => res.json({ transactions: getCashTransactions(req.user.id) }));
+api.post('/account/cash-transactions', requireAuth, (req, res) => {
+  const cashTransaction = createCashTransaction(req.user.id, req.body || {});
+  res.status(201).json({ transaction: cashTransaction, account: getAccountSummary(req.user.id) });
+});
 api.get('/orders', requireAuth, (req, res) => res.json({ orders: getOrders(req.user.id) }));
 api.post('/orders', requireAuth, (req, res) => {
   const order = placeOrder(req.user.id, req.body || {});
