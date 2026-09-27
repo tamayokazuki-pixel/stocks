@@ -74,11 +74,23 @@ test('account, trading, watchlist and admin flows are enforced by the API', { ti
     assert.equal(initialAccount.data.cashCents, 10000000);
     assert.deepEqual(initialAccount.data.positions, []);
 
+    assert.equal((await request(base, '/account/cash-transactions')).status, 401);
+    const topUp = await request(base, '/account/cash-transactions', { method: 'POST', cookie, body: { type: 'top_up', amountCents: 50025 } });
+    assert.equal(topUp.status, 201);
+    assert.equal(topUp.data.account.cashCents, 10050025);
+    assert.equal(topUp.data.transaction.type, 'top_up');
+    const withdrawal = await request(base, '/account/cash-transactions', { method: 'POST', cookie, body: { type: 'withdrawal', amountCents: 2500 } });
+    assert.equal(withdrawal.status, 201);
+    assert.equal(withdrawal.data.account.cashCents, 10047525);
+    assert.equal((await request(base, '/account/cash-transactions', { method: 'POST', cookie, body: { type: 'withdrawal', amountCents: 0 } })).status, 400);
+    assert.equal((await request(base, '/account/cash-transactions', { method: 'POST', cookie, body: { type: 'top_up', amountCents: 10000001 } })).status, 400);
+    assert.equal((await request(base, '/account/cash-transactions', { method: 'POST', cookie, body: { type: 'cash_out', amountCents: 100 } })).status, 400);
+
     const buy = await request(base, '/orders', { method: 'POST', cookie, body: { symbol: 'AAPL', side: 'buy', type: 'market', quantity: 3 } });
     assert.equal(buy.status, 201);
     assert.equal(buy.data.order.status, 'filled');
     assert.equal(buy.data.account.positions.find(position => position.symbol === 'AAPL').quantity, 3);
-    assert.equal(buy.data.account.cashCents, 10000000 - buy.data.order.filledPriceCents * 3);
+    assert.equal(buy.data.account.cashCents, withdrawal.data.account.cashCents - buy.data.order.filledPriceCents * 3);
     assert.equal((await request(base, '/orders', { method: 'POST', cookie, body: { symbol: 'AAPL', side: 'sell', type: 'market', quantity: 4 } })).status, 400);
     assert.equal((await request(base, '/orders', { method: 'POST', cookie, body: { symbol: 'AAPL', side: 'buy', type: 'market', quantity: -1 } })).status, 400);
 
@@ -86,6 +98,13 @@ test('account, trading, watchlist and admin flows are enforced by the API', { ti
     assert.equal(limitBuy.data.order.status, 'pending');
     assert.equal(limitBuy.data.account.reservedCashCents, 200);
     assert.equal(limitBuy.data.account.availableCashCents, limitBuy.data.account.cashCents - 200);
+    const overdrawReserved = await request(base, '/account/cash-transactions', { method: 'POST', cookie, body: { type: 'withdrawal', amountCents: limitBuy.data.account.cashCents } });
+    assert.equal(overdrawReserved.status, 400, 'withdrawals cannot use cash reserved by pending buy orders');
+    const history = await request(base, '/account/cash-transactions', { cookie });
+    assert.equal(history.status, 200);
+    assert.equal(history.data.transactions.length, 2);
+    assert.equal(history.data.transactions[0].type, 'withdrawal');
+    assert.equal(history.data.transactions[1].amountCents, 50025);
     const cancelled = await request(base, `/orders/${limitBuy.data.order.id}`, { method: 'DELETE', cookie });
     assert.equal(cancelled.data.order.status, 'cancelled');
     assert.equal(cancelled.data.account.reservedCashCents, 0);

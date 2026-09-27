@@ -68,6 +68,15 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_orders_pending ON orders(status, symbol);
+  CREATE TABLE IF NOT EXISTS cash_transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    type TEXT NOT NULL CHECK(type IN ('top_up', 'withdrawal')),
+    amount_cents INTEGER NOT NULL CHECK(amount_cents > 0),
+    balance_after_cents INTEGER NOT NULL CHECK(balance_after_cents >= 0),
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_cash_transactions_user ON cash_transactions(user_id, created_at DESC, id DESC);
   CREATE TABLE IF NOT EXISTS announcements (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
