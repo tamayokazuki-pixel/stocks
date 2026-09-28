@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { ArrowDownRight, ArrowRight, ArrowUpRight, X } from 'lucide-react';
 import type { Asset } from '../types';
@@ -50,12 +51,13 @@ export function Modal({ children, onClose, className = '' }: { children: ReactNo
     window.addEventListener('keydown', onKeyDown);
     return () => { document.body.style.overflow = before; window.removeEventListener('keydown', onKeyDown); previousFocus?.focus(); };
   }, []);
-  return <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
+  // Escape transformed page containers so fixed dialogs stay within the viewport.
+  return createPortal(<div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
     <div ref={dialogRef} className={`modal-card ${className}`} role="dialog" aria-modal="true">
       <button className="modal-close icon-button" aria-label="Close dialog" onClick={onClose}><X size={19} /></button>
       {children}
     </div>
-  </div>;
+  </div>, document.body);
 }
 
 export function LoadingBlock({ height = 240 }: { height?: number }) {

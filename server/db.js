@@ -77,6 +77,30 @@ db.exec(`
     created_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_cash_transactions_user ON cash_transactions(user_id, created_at DESC, id DESC);
+  CREATE TABLE IF NOT EXISTS transfer_methods (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    details TEXT NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0, 1)),
+    created_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS transfer_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    type TEXT NOT NULL CHECK(type IN ('deposit', 'withdrawal')),
+    amount_cents INTEGER NOT NULL CHECK(amount_cents BETWEEN 100 AND 10000000),
+    method_id INTEGER REFERENCES transfer_methods(id),
+    details TEXT NOT NULL,
+    reference TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'processing', 'completed', 'rejected', 'cancelled')),
+    review_note TEXT,
+    reviewed_by INTEGER REFERENCES users(id),
+    reviewed_at INTEGER,
+    created_at INTEGER NOT NULL,
+    request_key TEXT NOT NULL,
+    UNIQUE(user_id, request_key)
+  );
+  CREATE INDEX IF NOT EXISTS idx_transfers_user ON transfer_requests(user_id, id DESC);
+  CREATE INDEX IF NOT EXISTS idx_transfers_status ON transfer_requests(status, id DESC);
   CREATE TABLE IF NOT EXISTS announcements (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
