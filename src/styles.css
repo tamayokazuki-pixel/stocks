@@ -292,3 +292,39 @@ h1,h2,h3,h4,p { margin-top: 0; }
   .cash-transaction-amount { font-size:10px; }
   .cash-modal { padding:24px 20px; }
 }
+
+/* External request records are deliberately separate from simulated cash controls. */
+.manual-transfers { margin: 24px 0; padding: 24px; }
+.transfer-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 14px; }
+.transfer-heading h2 { font: 800 19px Manrope, sans-serif; margin: 7px 0 10px; }
+.manual-transfers h3 { font-size: 14px; margin-top: 24px; }
+.manual-transfers p, .transfer-modal p { color: #687c90; font-size: 12px; line-height: 1.65; overflow-wrap: anywhere; }
+.transfer-notice { background: #fff8eb; border: 1px solid #eee0c6; padding: 14px; border-radius: 9px; color: #846738 !important; }
+.transfer-help { font-size: 11px !important; }
+.transfer-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 16px 0; }
+.transfer-list { display: grid; gap: 12px; margin: 15px 0; }
+.transfer-record { padding: 16px; border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+.transfer-record-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 12px; }
+.transfer-record details { margin: 12px 0; }
+.transfer-record summary { cursor: pointer; color: #5269c9; font-size: 12px; }
+.transfer-status { font-size: 10px; font-weight: 700; text-transform: capitalize; color: #64758b; background: #eff2f6; padding: 5px 9px; border-radius: 6px; }
+.transfer-status--pending { color: #937026; background: #fff4d9; }
+.transfer-status--completed { color: #278368; background: #e7f8ee; }
+.transfer-status--rejected { color: #aa5058; background: #fff0f0; }
+.transfer-details { margin: 12px 0; padding: 12px; border-radius: 8px; background: #f6f8fc; }
+.transfer-details > div { display: grid; grid-template-columns: minmax(100px, 1fr) 2fr; gap: 10px; padding: 6px 0; font-size: 12px; }
+.transfer-details dt { color: #7b8c9e; }
+.transfer-details dd { margin: 0; color: #2d435a; overflow-wrap: anywhere; user-select: all; }
+.transfer-modal { max-width: 550px; }
+.transfer-modal h2 { font: 800 21px Manrope, sans-serif; margin: 4px 25px 15px 0; }
+.transfer-modal fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.transfer-modal .field-label { margin: 15px 0; }
+.transfer-modal .button { margin-top: 12px; }
+.transfer-checkbox { display: flex; gap: 10px; align-items: flex-start; font-size: 12px; line-height: 1.6; color: #5d7085; margin: 18px 0; }
+.transfer-checkbox input { margin-top: 4px; flex: none; }
+@media (max-width: 600px) {
+  .manual-transfers { padding: 17px; }
+  .transfer-heading { align-items: flex-start; flex-direction: column; }
+  .transfer-actions .button { width: 100%; }
+  .transfer-details > div { grid-template-columns: 1fr; gap: 4px; }
+}

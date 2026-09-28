@@ -50,6 +50,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       queryClient.removeQueries({ queryKey: ['orders'] });
       queryClient.removeQueries({ queryKey: ['watchlist'] });
       queryClient.removeQueries({ queryKey: ['cash-transactions'] });
+      queryClient.removeQueries({ queryKey: ['transfers'] });
+      queryClient.removeQueries({ queryKey: ['admin', 'transfers'] });
       toast.error('Your session has ended. Please sign in again.');
     };
     window.addEventListener('northstar:unauthorized', onUnauthorized);
@@ -104,6 +106,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     queryClient.removeQueries({ queryKey: ['orders'] });
     queryClient.removeQueries({ queryKey: ['watchlist'] });
     queryClient.removeQueries({ queryKey: ['cash-transactions'] });
+    queryClient.removeQueries({ queryKey: ['transfers'] });
+    queryClient.removeQueries({ queryKey: ['admin', 'transfers'] });
     toast.success('You have signed out.');
   };
   const toggleWatchlist = async (symbol: string) => {

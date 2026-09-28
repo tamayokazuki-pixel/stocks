@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { registerTransferRoutes } from './transfers.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
@@ -252,6 +253,8 @@ api.get('/admin/audit', requireAdmin, (_req, res) => {
     ORDER BY audit_log.created_at DESC, audit_log.id DESC LIMIT 50`).all();
   res.json({ entries });
 });
+
+registerTransferRoutes(api);
 
 api.use((_req, res) => res.status(404).json({ error: 'API endpoint not found.' }));
 

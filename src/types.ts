@@ -104,3 +104,14 @@ export type CashTransaction = {
   balanceAfterCents: number;
   createdAt: number;
 };
+
+export type TransferDetails =
+  | { kind: 'bank'; accountHolder: string; bankName: string; accountNumber: string; routingNumber: string; accountType: 'checking' | 'savings'; currency?: 'USD'; country?: 'US' }
+  | { kind: 'wallet'; address: string; network: 'Ethereum' | 'Polygon'; asset?: 'USDC' };
+export interface TransferMethod { id: number; details: TransferDetails; active: boolean; createdAt: number }
+export type TransferStatus = 'pending' | 'processing' | 'completed' | 'rejected' | 'cancelled';
+export interface TransferRequest {
+  id: number; userId: number; userName?: string; userEmail?: string; type: 'deposit' | 'withdrawal';
+  amountCents: number; methodId: number | null; details: TransferDetails; reference: string;
+  status: TransferStatus; reviewNote: string | null; reviewedBy: number | null; reviewedAt: number | null; createdAt: number;
+}
