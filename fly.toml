@@ -1,0 +1,35 @@
+# Fly.io config — https://fly.io
+# 1. fly auth login
+# 2. Edit `app` below to a globally unique name (e.g. yourname-northstar)
+# 3. fly launch --no-deploy   (uses this file + the Dockerfile; create the volume when asked)
+# 4. fly secrets set ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='a-long-unique-password'
+# 5. fly deploy && fly open
+
+app = "northstar" # CHANGE ME — must be globally unique on fly.io
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = true # sleeps when idle to save money; set false to stay always on
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 200
+    hard_limit = 250
+
+# Persistent volume for the SQLite database. The server writes to /app/data by default.
+# IMPORTANT: keep exactly one machine — SQLite + the in-process price poller mean this
+# app cannot be scaled horizontally. Do not run `fly scale count` above 1.
+[[mounts]]
+  source = "northstar_data"
+  destination = "/app/data"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

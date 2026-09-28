@@ -1,0 +1,37 @@
+# Render Blueprint — https://dashboard.render.com → New → Blueprint → select this repo.
+# The web service runs the Express API and serves the built frontend from one origin.
+services:
+  - type: web
+    name: northstar
+    runtime: node
+    plan: starter # persistent disks require a paid plan; the free tier wipes the database on restart
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    disk: # persistent disk for the SQLite database (survives deploys and restarts)
+      name: northstar-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: "22" # server uses node:sqlite, needs 22.13+
+      - key: DATABASE_PATH
+        value: /var/data/northstar.sqlite # keep the DB on the persistent disk
+      - key: DEMO_MODE
+        value: "false" # leave off for public deployments
+      # Secrets — set these in the dashboard when the blueprint is created:
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      # Optional extras (uncomment and set in the dashboard):
+      # - key: FINNHUB_API_KEY
+      #   sync: false
+      # - key: MARKET_PROVIDER
+      #   value: auto # auto | yahoo | finnhub | demo
+      # - key: SEED_USER_EMAIL
+      #   sync: false
+      # - key: SEED_USER_NAME
+      #   sync: false
+      # - key: SEED_USER_PASSWORD
+      #   sync: false
