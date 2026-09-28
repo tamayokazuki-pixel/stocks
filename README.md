@@ -183,6 +183,9 @@ or real-money trading integration.
 
 ## Production build
 
+Ready-to-use deployment configs (Render, Fly.io, and a generic Dockerfile) plus a
+step-by-step guide are in [DEPLOY.md](DEPLOY.md).
+
 ```bash
 npm run build
 ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD='a-unique-password-at-least-12-characters' NODE_ENV=production npm start

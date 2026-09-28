@@ -1,0 +1,16 @@
+node_modules
+dist
+data
+.git
+.scratch
+.env
+.env.local
+*.log
+coverage/
+.DS_Store
+Dockerfile
+.dockerignore
+render.yaml
+fly.toml
+README.md
+DEPLOY.md
