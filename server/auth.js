@@ -1,6 +1,8 @@
 import crypto from 'node:crypto';
 import { db } from './db.js';
 
+const USER_COLUMNS = `users.id, users.name, users.email, users.role, users.status,\n  users.is_demo AS isDemo, users.cash_cents AS cashCents, users.created_at AS createdAt`;
+
 const COOKIE_NAME = 'northstar_session';
 const SESSION_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -26,11 +28,29 @@ function cookieOptions() {
   };
 }
 
-export function createSession(res, userId) {
+// `linkedUserId` records the other side of a real <-> demo switch so the pair stays switchable.
+export function createSession(res, userId, linkedUserId = null) {
   const token = crypto.randomBytes(32).toString('base64url');
-  db.prepare('INSERT INTO sessions(token_hash, user_id, expires_at, created_at) VALUES(?, ?, ?, ?)')
-    .run(hashToken(token), userId, Date.now() + SESSION_AGE_MS, Date.now());
+  db.prepare('INSERT INTO sessions(token_hash, user_id, linked_user_id, expires_at, created_at) VALUES(?, ?, ?, ?, ?)')
+    .run(hashToken(token), userId, linkedUserId, Date.now() + SESSION_AGE_MS, Date.now());
   res.cookie(COOKIE_NAME, token, cookieOptions());
+}
+
+// Replaces the current session cookie with one for `targetUserId`, keeping the previous account
+// linked so the user can switch straight back.
+export function switchSession(req, res, targetUserId) {
+  const token = sessionToken(req);
+  const current = token ? db.prepare('SELECT user_id AS userId FROM sessions WHERE token_hash = ?').get(hashToken(token)) : null;
+  destroySession(req, res);
+  createSession(res, targetUserId, current?.userId ?? null);
+}
+
+// The account linked to the current session, when it exists and is still usable.
+export function linkedUserId(req) {
+  const token = sessionToken(req);
+  if (!token || token.length > 128) return null;
+  const session = db.prepare('SELECT linked_user_id AS linkedUserId FROM sessions WHERE token_hash = ?').get(hashToken(token));
+  return session?.linkedUserId ?? null;
 }
 
 export function destroySession(req, res) {
@@ -42,8 +62,7 @@ export function destroySession(req, res) {
 export function getUser(req) {
   const token = sessionToken(req);
   if (!token || token.length > 128) return null;
-  const session = db.prepare(`SELECT users.id, users.name, users.email, users.role, users.status, users.cash_cents AS cashCents,
-      users.created_at AS createdAt, sessions.expires_at AS expiresAt
+  const session = db.prepare(`SELECT ${USER_COLUMNS}, sessions.expires_at AS expiresAt
     FROM sessions JOIN users ON sessions.user_id = users.id WHERE sessions.token_hash = ?`).get(hashToken(token));
   if (!session) return null;
   if (session.expiresAt <= Date.now() || session.status !== 'active') {
@@ -51,7 +70,12 @@ export function getUser(req) {
     return null;
   }
   const { expiresAt, ...user } = session;
-  return user;
+  return { ...user, isDemo: Boolean(user.isDemo) };
+}
+
+export function userById(id) {
+  const user = db.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`).get(id);
+  return user ? { ...user, isDemo: Boolean(user.isDemo) } : null;
 }
 
 export function requireAuth(req, res, next) {

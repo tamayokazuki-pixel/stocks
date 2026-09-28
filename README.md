@@ -17,6 +17,26 @@ Open **http://localhost:5173**. The Express API and Vite-powered React app share
 
 On first run, a local SQLite database is created at `data/northstar.sqlite`. The `data/` directory is Git-ignored. An example environment file is in `.env.example`; copy it to `.env` to customize settings.
 
+### Your account vs. the shared demo
+
+Northstar keeps **real accounts** (the ones people register) separate from the **shared demo
+account** (`alex@northstar.demo`), which is seeded with a sample portfolio and is visible to
+everyone who opens it.
+
+- **Create a real account** with **Get started → Create account**: it gets its own private cash
+  balance, holdings, watchlist, and order history, starting at $100,000 in **virtual** buying power.
+- **Switch accounts** from the header (**Switch to demo** / **Switch to &lt;your name&gt;**), the
+  profile menu, or the sidebar. The account you came from stays linked to the session, so you can
+  switch straight back. Switching replaces the session cookie — it never merges the two portfolios,
+  and private data is refetched for whichever account is active.
+- While you are in the demo, a green banner and a **Shared demo** label make it clear the portfolio
+  is not yours. The demo account is also excluded from manual bank/wallet transfers and from
+  administrator suspend/fund actions, and the `@northstar.demo` domain is reserved, so no one can
+  register an account that shadows it.
+- On a private deployment you can also provision a real account ahead of time with
+  `SEED_USER_NAME`, `SEED_USER_EMAIL` and `SEED_USER_PASSWORD` (see `.env.example`); credentials
+  belong in the Git-ignored `.env`, never in the repository.
+
 ### Explore the demo
 
 - Click **Explore demo account** for a one-click sign-in to a seeded portfolio with virtual holdings and cash.
@@ -58,12 +78,12 @@ for real-money trading or price-sensitive decisions.
 | Area | Features |
 | --- | --- |
 | Markets | Browse/search/filter/sort stocks and ETFs; live-updating price panels; selectable 1D/1W/1M/3M/1Y charts; market pulse. |
-| Accounts | Register, sign in, sign out, or enter the development demo; private portfolio and watchlist. New accounts receive $100,000 in **virtual** buying power. |
+| Accounts | Register, sign in, sign out, or enter the development demo; private portfolio and watchlist. New accounts receive $100,000 in **virtual** buying power. Real accounts are flagged separately from the shared demo and can switch between the two without mixing data. |
 | Paper cash | Top up virtual paper-trading cash or withdraw unreserved cash; review a per-account activity history. These are simulated balance adjustments only—no bank, card, or payment processor is connected. Each adjustment is $1–$100,000. |
 | External transfers (opt-in) | Operator receiving bank/wallet details, manual top-up reports and withdrawal requests, encrypted details, private history, cancellation, and an admin review queue. Records only; no automated payment, custody balance, or link to virtual cash. |
 | Trading | Buy/sell whole shares with market orders; place limit orders; reserve buying power/shares while pending; automatically fill crossed limits on price ticks; review and cancel orders. |
 | Portfolio | Current equity, cash, holdings, allocation, daily movement, and unrealized position returns. |
-| Admin | Role-protected asset listing/visibility/featured controls and demo reference prices; suspend/reactivate traders; adjust virtual cash; publish/hide announcements; pause/resume all paper trading; audit log. |
+| Admin | Role-protected asset listing/visibility/featured controls and demo reference prices; suspend/reactivate traders; adjust virtual cash; publish/hide announcements; pause/resume all paper trading; audit log. Real accounts are counted separately from the shared demo, which cannot be suspended or funded. |
 | Safety | Password hashes (bcrypt), random server-stored hashed session tokens, HttpOnly/SameSite cookies, request-verification header for mutations, login rate limiting, server-side validation and authorization, and transactional order/account updates. |
 
 Cash is stored as integer cents and positions as whole shares. Cash top-ups and withdrawals are virtual ledger entries; withdrawals cannot consume funds reserved by pending buy orders. Pending buy orders reserve `quantity × limit price`; pending sell orders reserve shares. Hiding an asset cancels its pending orders. Pausing trading stops new orders and pending-order matching until resumed. This is a single-process SQLite application intended as a functional prototype, not a distributed trading engine.
@@ -179,7 +199,7 @@ npm test        # isolated API + provider tests, including manual transfers and 
 npm run build   # TypeScript validation and production bundle
 ```
 
-The integration test starts its own production-mode server against a temporary SQLite database, and removes the database afterward.
+The integration tests start their own production-mode server against a temporary SQLite database, and remove the database afterward. They cover account/demo separation, switching between the two, the reserved demo domain, and administrator restrictions on the shared demo.
 
 ## Project map
 
@@ -189,7 +209,8 @@ The integration test starts its own production-mode server against a temporary S
 - `server/market.js` — quote cache, simulated fallback, SSE updates, and historical chart data.
 - `server/providers.js` — real market-data adapters (Yahoo Finance, Finnhub) and provider selection.
 - `server/orders.js` — buying-power reservations, order filling, positions, and portfolio math.
-- `server/auth.js` — HttpOnly cookie sessions and role checks.
+- `server/auth.js` — HttpOnly cookie sessions, role checks, and the linked-session account switch.
+- `src/components/AccountSwitcher.tsx` — the real-account/demo switch control, account-type label, and shared-demo banner.
 - `server/api.test.js` — end-to-end API integration coverage against an isolated database.
 - `server/providers.test.js` — market-data adapter parsing, fallback, and selection tests.
 

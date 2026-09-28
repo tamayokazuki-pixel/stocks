@@ -12,7 +12,7 @@ const key = /^[a-fA-F0-9]{64}$/.test(keyHex) ? Buffer.from(keyHex, 'hex') : null
 function fail(message, status = 400) { throw Object.assign(new Error(message), { status }); }
 function requireEnabled(req, _res, next) {
   if (!enabled) fail('Manual transfers are not enabled. Contact the operator.', 503);
-  if (req.user.email.toLowerCase() === 'alex@northstar.demo') fail('Use a private account, not the shared demo, for manual transfers.', 403);
+  if (req.user.isDemo) fail('Use a private account, not the shared demo, for manual transfers.', 403);
   next();
 }
 function text(value, label, min = 2, max = 120) {
@@ -79,7 +79,7 @@ export function registerTransferRoutes(api) {
     keyGenerator: req => String(req.user.id), message: { error: 'Too many transfer requests. Please try again later.' } });
   // Authenticated routes only; never let a proxy/browser cache account details.
   api.use(['/transfers', '/admin/transfers'], (_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
-  api.get('/transfers/config', requireAuth, (req, res) => res.json({ enabled: enabled && req.user.email.toLowerCase() !== 'alex@northstar.demo' }));
+  api.get('/transfers/config', requireAuth, (req, res) => res.json({ enabled: enabled && !req.user.isDemo }));
   api.get('/transfers/methods', requireAuth, requireEnabled, (_req, res) => {
     res.json({ methods: db.prepare('SELECT * FROM transfer_methods WHERE active = 1 ORDER BY id DESC').all().map(methodView) });
   });

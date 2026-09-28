@@ -328,3 +328,27 @@ h1,h2,h3,h4,p { margin-top: 0; }
   .transfer-actions .button { width: 100%; }
   .transfer-details > div { grid-template-columns: 1fr; gap: 4px; }
 }
+
+/* Real account <-> shared demo switching */
+.account-switch { display: inline-flex; align-items: center; gap: 7px; height: 37px; padding: 0 13px; border-radius: 9px; border: 1px solid var(--line); background: #fff; color: #4a5c72; font-size: 10.5px; font-weight: 800; white-space: nowrap; transition: background .16s, border-color .16s, color .16s; }
+.account-switch:hover:not(:disabled) { background: #f2f6ff; border-color: #d5e0f8; color: #3f57c4; }
+.account-switch:disabled { opacity: .6; cursor: progress; }
+.account-switch--demo { color: #1f8f6d; border-color: #d8eee6; background: #f1faf6; }
+.account-switch--demo:hover:not(:disabled) { background: #e7f7f0; border-color: #bfe6d8; color: #147a5b; }
+.account-switch--header { margin-right: 4px; }
+.sidebar-account { flex-wrap: wrap; }
+.sidebar-account-switch { flex-basis: 100%; margin-top: 9px; }
+.sidebar-account-switch:empty { display: none; }
+.sidebar-account-switch .account-switch { width: 100%; justify-content: center; background: rgba(255,255,255,.06); border-color: rgba(213,231,249,.16); color: #cfdaea; height: 34px; }
+.sidebar-account-switch .account-switch:hover:not(:disabled) { background: rgba(255,255,255,.12); color: #fff; border-color: rgba(213,231,249,.28); }
+.account-type-label { display: inline-flex; align-items: center; gap: 4px; margin-top: 7px; padding: 3px 7px; border-radius: 20px; background: #eef2f8; color: #6d7c90; font-size: 8.5px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; }
+.account-type-label--demo { background: #e9f7f1; color: #17916c; }
+.demo-banner { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; padding: 13px 15px; border-radius: 11px; border: 1px solid #d9eee6; background: #f2fbf7; }
+.demo-banner-icon { display: grid; place-items: center; width: 33px; height: 33px; border-radius: 9px; background: #e2f5ec; color: #1a9a72; flex: none; }
+.demo-banner-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.demo-banner-copy strong { font-size: 11.5px; color: #1d4a3b; }
+.demo-banner-copy small { font-size: 10px; color: #5c8a79; line-height: 1.45; }
+.demo-banner .button { flex: none; }
+@media (max-width: 720px) { .demo-banner { flex-wrap: wrap; } .account-switch--header span { display: none; } .account-switch--header { padding: 0 10px; } }
+.admin-role-label--demo { color: #17916c; background: #e9f7f1; }
+.admin-user-note { font-size: 10px; color: #8d99a8; }

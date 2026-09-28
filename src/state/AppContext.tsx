@@ -1,10 +1,10 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { api } from '../lib/api';
-import type { Account, MarketData, Order, User } from '../types';
+import { api, errorMessage } from '../lib/api';
+import type { Account, MarketData, Order, SwitchTarget, User } from '../types';
 
-type AuthResponse = { user: User | null; demoEnabled?: boolean };
+type AuthResponse = { user: User | null; demoEnabled?: boolean; switchTarget?: SwitchTarget | null };
 type AppContextValue = {
   user: User | null;
   authLoading: boolean;
@@ -19,11 +19,15 @@ type AppContextValue = {
   watchlist: string[];
   watchlistLoading: boolean;
   authMode: 'login' | 'register' | null;
+  // The other account this session can switch to (the shared demo, or the real account it came from).
+  switchTarget?: SwitchTarget | null;
+  switchingAccount: boolean;
   openAuth: (mode?: 'login' | 'register') => void;
   closeAuth: () => void;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (name: string, email: string, password: string) => Promise<void>;
   demoSignIn: () => Promise<void>;
+  switchAccount: () => Promise<void>;
   signOut: () => Promise<void>;
   toggleWatchlist: (symbol: string) => Promise<void>;
   refreshPrivate: () => void;
@@ -34,6 +38,7 @@ const AppContext = createContext<AppContextValue | null>(null);
 export function AppProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [authMode, setAuthMode] = useState<'login' | 'register' | null>(null);
+  const [switchingAccount, setSwitchingAccount] = useState(false);
   const authQuery = useQuery<AuthResponse>({ queryKey: ['auth'], queryFn: () => api('/auth/me'), staleTime: 60_000, retry: false });
   const user = authQuery.data?.user ?? null;
   const marketQuery = useQuery<MarketData>({ queryKey: ['market'], queryFn: () => api('/market'), refetchInterval: 60_000 });
@@ -83,6 +88,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     queryClient.invalidateQueries({ queryKey: ['cash-transactions'] });
   };
 
+  // Private data belongs to one account; drop it before another account's data is fetched.
+  const clearPrivateData = () => {
+    for (const key of ['account', 'orders', 'watchlist', 'cash-transactions', 'transfers', ['admin', 'transfers']]) {
+      queryClient.removeQueries({ queryKey: Array.isArray(key) ? key : [key] });
+    }
+  };
+
   const finishSignIn = (result: AuthResponse) => {
     queryClient.setQueryData(['auth'], { user: result.user, demoEnabled: authQuery.data?.demoEnabled });
     refreshPrivate();
@@ -99,15 +111,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const demoSignIn = async () => {
     finishSignIn(await api<AuthResponse>('/auth/demo', { method: 'POST' }));
   };
+  const switchAccount = async () => {
+    if (switchingAccount) return;
+    setSwitchingAccount(true);
+    try {
+      const result = await api<AuthResponse>('/auth/switch', { method: 'POST' });
+      clearPrivateData();
+      queryClient.setQueryData(['auth'], result);
+      refreshPrivate();
+      toast.success(result.user?.isDemo
+        ? 'You are in the shared demo account.'
+        : `Back in your own account${result.user?.name ? `, ${result.user.name.split(' ')[0]}` : ''}.`);
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setSwitchingAccount(false);
+    }
+  };
   const signOut = async () => {
     await api('/auth/logout', { method: 'POST' });
-    queryClient.setQueryData(['auth'], { user: null, demoEnabled: authQuery.data?.demoEnabled });
-    queryClient.removeQueries({ queryKey: ['account'] });
-    queryClient.removeQueries({ queryKey: ['orders'] });
-    queryClient.removeQueries({ queryKey: ['watchlist'] });
-    queryClient.removeQueries({ queryKey: ['cash-transactions'] });
-    queryClient.removeQueries({ queryKey: ['transfers'] });
-    queryClient.removeQueries({ queryKey: ['admin', 'transfers'] });
+    clearPrivateData();
+    queryClient.setQueryData(['auth'], { user: null, demoEnabled: authQuery.data?.demoEnabled, switchTarget: null });
     toast.success('You have signed out.');
   };
   const toggleWatchlist = async (symbol: string) => {
@@ -128,8 +152,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     account: user ? accountQuery.data : undefined, accountLoading: accountQuery.isLoading,
     orders: user ? ordersQuery.data?.orders ?? [] : [], ordersLoading: ordersQuery.isLoading,
     watchlist: user ? watchlistQuery.data?.symbols ?? [] : [], watchlistLoading: watchlistQuery.isLoading, authMode,
+    switchTarget: authQuery.data?.switchTarget ?? null, switchingAccount,
     openAuth: (mode = 'login') => setAuthMode(mode), closeAuth: () => setAuthMode(null),
-    signIn, signUp, demoSignIn, signOut, toggleWatchlist, refreshPrivate,
+    signIn, signUp, demoSignIn, switchAccount, signOut, toggleWatchlist, refreshPrivate,
   }}>{children}</AppContext.Provider>;
 }
 
