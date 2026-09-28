@@ -8,8 +8,8 @@ import express from 'express';
 import helmet from 'helmet';
 import bcrypt from 'bcryptjs';
 import { rateLimit } from 'express-rate-limit';
-import { db, demoEnabled, transaction, getSetting, setSetting, audit } from './db.js';
-import { createSession, destroySession, getUser, requireAuth, requireAdmin } from './auth.js';
+import { db, demoEnabled, transaction, getSetting, setSetting, audit, DEMO_EMAIL, DEMO_EMAIL_DOMAIN } from './db.js';
+import { createSession, destroySession, getUser, linkedUserId, requireAuth, requireAdmin, switchSession, userById } from './auth.js';
 import { getAsset, getAssets, getHistory, getQuote, getSnapshot, publishMarketUpdate, resetQuote, setOrderMatcher, startMarket, subscribeToMarket } from './market.js';
 import { cancelOrder, createCashTransaction, getAccountSummary, getCashTransactions, getOrders, matchPendingOrders, placeOrder, reservedCash } from './orders.js';
 
@@ -35,14 +35,48 @@ api.use((req, res, next) => {
 });
 
 function fail(message, status = 400) { throw Object.assign(new Error(message), { status }); }
-function userById(id) {
-  return db.prepare('SELECT id, name, email, role, status, cash_cents AS cashCents, created_at AS createdAt FROM users WHERE id = ?').get(id);
+
+// The account a session can switch to: a real account offers the shared demo, and a demo session
+// offers the real account it was opened from. Only one shared demo account exists.
+function resolveSwitchTarget(user, linkedId) {
+  if (!user) return null;
+  if (linkedId) {
+    const linked = db.prepare('SELECT id, name, status, is_demo AS isDemo FROM users WHERE id = ?').get(linkedId);
+    if (linked && linked.status === 'active' && Boolean(linked.isDemo) !== user.isDemo) {
+      return { id: linked.id, name: linked.name, isDemo: Boolean(linked.isDemo) };
+    }
+  }
+  if (user.isDemo || !demoEnabled) return null;
+  const demo = db.prepare('SELECT id, name, status, is_demo AS isDemo FROM users WHERE email = ?').get(DEMO_EMAIL);
+  if (!demo || !demo.isDemo || demo.status !== 'active') return null;
+  return { id: demo.id, name: demo.name, isDemo: true };
+}
+
+function authState(user, linkedId) {
+  return { user, demoEnabled, switchTarget: resolveSwitchTarget(user, linkedId) };
+}
+
+function currentAuthState(req) {
+  const user = getUser(req);
+  return authState(user, user ? linkedUserId(req) : null);
 }
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: 'draft-8', legacyHeaders: false,
   message: { error: 'Too many attempts. Please try again in a few minutes.' } });
 
 api.get('/health', (_req, res) => res.json({ status: 'ok', service: 'northstar', time: Date.now() }));
-api.get('/auth/me', (req, res) => res.json({ user: getUser(req), demoEnabled }));
+api.get('/auth/me', (req, res) => res.json(currentAuthState(req)));
+
+// Swap the session between the signed-in account and the shared demo account. The previous account
+// stays linked to the new session, so switching back is a single request and no data is carried over.
+api.post('/auth/switch', authLimiter, (req, res) => {
+  const user = getUser(req);
+  if (!user) fail('Please sign in to continue.', 401);
+  const target = resolveSwitchTarget(user, linkedUserId(req));
+  if (!target) fail('There is no other account to switch to right now.', 400);
+  switchSession(req, res, target.id);
+  audit(user.id, target.id, 'switch_account', user.isDemo ? 'Returned to a personal account' : 'Opened the shared demo account');
+  res.json(authState(userById(target.id), user.id));
+});
 
 api.post('/auth/register', authLimiter, (req, res) => {
   const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
@@ -50,15 +84,16 @@ api.post('/auth/register', authLimiter, (req, res) => {
   const password = req.body?.password;
   if (name.length < 2 || name.length > 60) fail('Name must be between 2 and 60 characters.');
   if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail('Enter a valid email address.');
+  if (email === DEMO_EMAIL || email.endsWith(`@${DEMO_EMAIL_DOMAIN}`)) fail('That domain is reserved for the shared demo account. Use your own email address.');
   if (typeof password !== 'string' || password.length < 8 || password.length > 72) fail('Password must be 8–72 characters.');
   if (db.prepare('SELECT id FROM users WHERE email = ?').get(email)) fail('An account with this email already exists.', 409);
-  const result = db.prepare('INSERT INTO users(name, email, password_hash, created_at) VALUES(?, ?, ?, ?)')
+  const result = db.prepare('INSERT INTO users(name, email, password_hash, created_at, is_demo) VALUES(?, ?, ?, ?, 0)')
     .run(name, email, bcrypt.hashSync(password, 12), Date.now());
   const id = Number(result.lastInsertRowid);
   for (const symbol of ['AAPL', 'NVDA', 'SPY']) db.prepare('INSERT INTO watchlists(user_id, symbol) VALUES(?, ?)').run(id, symbol);
   destroySession(req, res);
   createSession(res, id);
-  res.status(201).json({ user: userById(id) });
+  res.status(201).json(authState(userById(id), null));
 });
 
 api.post('/auth/login', authLimiter, (req, res) => {
@@ -70,16 +105,18 @@ api.post('/auth/login', authLimiter, (req, res) => {
   if (user.status !== 'active') fail('This account is currently suspended.', 403);
   destroySession(req, res);
   createSession(res, user.id);
-  res.json({ user: userById(user.id) });
+  res.json(authState(userById(user.id), null));
 });
 
 api.post('/auth/demo', authLimiter, (req, res) => {
   if (!demoEnabled) fail('The demo account is not available.', 404);
-  const user = db.prepare('SELECT id FROM users WHERE email = ?').get('alex@northstar.demo');
-  if (!user) fail('The demo account is not available.', 404);
+  const demo = db.prepare('SELECT id, is_demo AS isDemo, status FROM users WHERE email = ?').get(DEMO_EMAIL);
+  if (!demo?.isDemo || demo.status !== 'active') fail('The demo account is not available.', 404);
+  // Keep the account the visitor came from linked, so they can switch straight back.
+  const previous = getUser(req);
   destroySession(req, res);
-  createSession(res, user.id);
-  res.json({ user: userById(user.id) });
+  createSession(res, demo.id, previous && !previous.isDemo ? previous.id : null);
+  res.json(authState(userById(demo.id), previous && !previous.isDemo ? previous.id : null));
 });
 
 api.post('/auth/logout', (req, res) => {
@@ -131,7 +168,7 @@ api.delete('/watchlist/:symbol', requireAuth, (req, res) => {
 });
 
 api.get('/admin/overview', requireAdmin, (_req, res) => {
-  const users = db.prepare("SELECT COUNT(*) AS total, SUM(status = 'active') AS active FROM users WHERE role = 'user'").get();
+  const users = db.prepare("SELECT COUNT(*) AS total, SUM(status = 'active') AS active,\n    SUM(is_demo = 0) AS realAccounts FROM users WHERE role = 'user'").get();
   const orders = db.prepare(`SELECT COUNT(*) AS total, SUM(status = 'pending') AS pending,
     SUM(status = 'filled') AS filled, COALESCE(SUM(CASE WHEN status = 'filled' THEN quantity * filled_price_cents ELSE 0 END), 0) AS volumeCents FROM orders`).get();
   const assetCount = db.prepare('SELECT COUNT(*) AS total, SUM(active = 1) AS active FROM assets').get();
@@ -141,8 +178,8 @@ api.get('/admin/overview', requireAdmin, (_req, res) => {
 });
 
 api.get('/admin/users', requireAdmin, (_req, res) => {
-  const users = db.prepare(`SELECT id, name, email, role, status, cash_cents AS cashCents, created_at AS createdAt
-    FROM users ORDER BY created_at DESC`).all();
+  const users = db.prepare(`SELECT id, name, email, role, status, is_demo AS isDemo, cash_cents AS cashCents, created_at AS createdAt
+    FROM users ORDER BY created_at DESC`).all().map(user => ({ ...user, isDemo: Boolean(user.isDemo) }));
   res.json({ users });
 });
 
@@ -152,6 +189,7 @@ api.patch('/admin/users/:id', requireAdmin, (req, res) => {
   const target = userById(id);
   if (!target) fail('User not found.', 404);
   if (target.role === 'admin') fail('Admin accounts cannot be changed here.', 403);
+  if (target.isDemo) fail('The shared demo account is managed by the demo seed, not this screen.', 403);
   const action = req.body?.action;
   transaction(() => {
     if (action === 'suspend' || action === 'activate') {

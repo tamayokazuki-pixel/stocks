@@ -47,7 +47,12 @@ export type User = {
   status: 'active' | 'suspended';
   cashCents: number;
   createdAt: number;
+  // True for the shared demonstration account, whose portfolio everyone who opens it sees.
+  isDemo: boolean;
 };
+
+// The other account a session can switch to (a real account <-> the shared demo).
+export type SwitchTarget = { id: number; name: string; isDemo: boolean };
 export type Position = {
   symbol: string;
   name: string;
@@ -88,7 +93,7 @@ export type Order = {
   filledAt: number | null;
 };
 export type AdminOverview = {
-  users: { total: number; active: number };
+  users: { total: number; active: number; realAccounts: number };
   orders: { total: number; pending: number; filled: number; volumeCents: number };
   assets: { total: number; active: number };
   tradingEnabled: boolean;

@@ -11,6 +11,17 @@ if (databasePath !== ':memory:') fs.mkdirSync(path.dirname(path.resolve(database
 export const db = new DatabaseSync(databasePath);
 db.exec('PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;');
 
+// The shared demonstration account. It is seeded with a sample portfolio and is intentionally
+// visible to anyone who opens it; real accounts are private to the person who registered them.
+export const DEMO_EMAIL = 'alex@northstar.demo';
+export const DEMO_EMAIL_DOMAIN = DEMO_EMAIL.split('@')[1];
+
+// Schema additions are applied to databases created by earlier versions of the app.
+function addColumnIfMissing(table, column, definition) {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!columns.some(entry => entry.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -20,13 +31,15 @@ db.exec(`
     role TEXT NOT NULL DEFAULT 'user' CHECK(role IN ('user', 'admin')),
     status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'suspended')),
     cash_cents INTEGER NOT NULL DEFAULT 10000000 CHECK(cash_cents >= 0),
-    created_at INTEGER NOT NULL
+    created_at INTEGER NOT NULL,
+    is_demo INTEGER NOT NULL DEFAULT 0 CHECK(is_demo IN (0, 1))
   );
   CREATE TABLE IF NOT EXISTS sessions (
     token_hash TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     expires_at INTEGER NOT NULL,
-    created_at INTEGER NOT NULL
+    created_at INTEGER NOT NULL,
+    linked_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
   );
   CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
   CREATE TABLE IF NOT EXISTS assets (
@@ -119,6 +132,9 @@ db.exec(`
   );
 `);
 
+addColumnIfMissing('users', 'is_demo', 'INTEGER NOT NULL DEFAULT 0');
+addColumnIfMissing('sessions', 'linked_user_id', 'INTEGER REFERENCES users(id) ON DELETE CASCADE');
+
 // All multi-statement account mutations run synchronously in one SQLite transaction.
 export function transaction(fn) {
   db.exec('BEGIN IMMEDIATE');
@@ -174,14 +190,14 @@ if (db.prepare('SELECT COUNT(*) AS count FROM announcements').get().count === 0)
 
 export const demoEnabled = process.env.DEMO_MODE === 'true' || (process.env.DEMO_MODE !== 'false' && process.env.NODE_ENV !== 'production');
 
-if (demoEnabled && !db.prepare('SELECT id FROM users WHERE email = ?').get('alex@northstar.demo')) {
+if (demoEnabled && !db.prepare('SELECT id FROM users WHERE email = ?').get(DEMO_EMAIL)) {
   const positions = [
     ['AAPL', 40, 19870], ['NVDA', 60, 13540], ['MSFT', 20, 42730], ['SPY', 22, 56025],
   ];
   const cashCents = 10000000 - positions.reduce((sum, [, quantity, cost]) => sum + quantity * cost, 0);
   transaction(() => {
-    const result = db.prepare('INSERT INTO users(name, email, password_hash, cash_cents, created_at) VALUES(?, ?, ?, ?, ?)')
-      .run('Alex Morgan', 'alex@northstar.demo', bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 12), cashCents, Date.now());
+    const result = db.prepare('INSERT INTO users(name, email, password_hash, cash_cents, created_at, is_demo) VALUES(?, ?, ?, ?, ?, 1)')
+      .run('Alex Morgan', DEMO_EMAIL, bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 12), cashCents, Date.now());
     const id = Number(result.lastInsertRowid);
     const addPosition = db.prepare('INSERT INTO positions(user_id, symbol, quantity, average_cost_cents) VALUES(?, ?, ?, ?)');
     const addOrder = db.prepare(`INSERT INTO orders(user_id, symbol, side, type, quantity, filled_price_cents, status, created_at, filled_at)
@@ -195,6 +211,29 @@ if (demoEnabled && !db.prepare('SELECT id FROM users WHERE email = ?').get('alex
       db.prepare('INSERT INTO watchlists(user_id, symbol) VALUES(?, ?)').run(id, symbol);
     }
   });
+}
+
+// Databases created before the demo flag existed are backfilled so the shared account is labelled.
+db.prepare('UPDATE users SET is_demo = 1 WHERE email = ?').run(DEMO_EMAIL);
+
+// Optional real (non-demo) account provisioned from the environment, e.g. a personal paper-trading
+// account for a self-hosted deployment. Credentials stay in the Git-ignored .env, never in code.
+const seedName = (process.env.SEED_USER_NAME || 'Northstar Trader').trim();
+const seedEmail = (process.env.SEED_USER_EMAIL || '').trim().toLowerCase();
+const seedPassword = process.env.SEED_USER_PASSWORD || '';
+if (seedEmail && seedPassword) {
+  if (seedEmail === DEMO_EMAIL || seedEmail.endsWith(`@${DEMO_EMAIL_DOMAIN}`)) {
+    console.warn('SEED_USER_EMAIL uses the reserved demo domain; the account was not created.');
+  } else if (seedPassword.length < 8 || seedPassword.length > 72) {
+    console.warn('SEED_USER_PASSWORD must be 8–72 characters; the account was not created.');
+  } else if (!db.prepare('SELECT id FROM users WHERE email = ?').get(seedEmail)) {
+    const result = db.prepare('INSERT INTO users(name, email, password_hash, created_at, is_demo) VALUES(?, ?, ?, ?, 0)')
+      .run(seedName, seedEmail, bcrypt.hashSync(seedPassword, 12), Date.now());
+    for (const symbol of ['AAPL', 'NVDA', 'SPY']) {
+      db.prepare('INSERT INTO watchlists(user_id, symbol) VALUES(?, ?)').run(Number(result.lastInsertRowid), symbol);
+    }
+    console.log(`Provisioned personal account ${seedEmail}`);
+  }
 }
 
 const adminEmail = process.env.ADMIN_EMAIL || (process.env.NODE_ENV !== 'production' ? 'admin@northstar.demo' : '');

@@ -107,3 +107,59 @@ test('account, trading, watchlist and admin flows are enforced by the API', { ti
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test('a real account and the shared demo account stay separate and switchable', { timeout: 30000 }, async () => {
+  const { base, child, directory } = await startIsolatedServer();
+  try {
+    const registered = await request(base, '/auth/register', { method: 'POST', body: { name: 'Jordan Reyes', email: 'jordan@example.com', password: 'secure-password-123' } });
+    assert.equal(registered.status, 201);
+    assert.equal(registered.data.user.isDemo, false);
+    assert.equal(registered.data.switchTarget.isDemo, true, 'a real account can open the shared demo');
+    const realCookie = registered.cookie;
+
+    // The demo domain is reserved, so a real account can never shadow the shared demo.
+    const reserved = await request(base, '/auth/register', { method: 'POST', body: { name: 'Not Demo', email: 'someone@northstar.demo', password: 'secure-password-123' } });
+    assert.equal(reserved.status, 400);
+    assert.equal((await request(base, '/auth/switch', { method: 'POST' })).status, 401);
+
+    const bought = await request(base, '/orders', { method: 'POST', cookie: realCookie, body: { symbol: 'TSLA', side: 'buy', type: 'market', quantity: 2 } });
+    assert.equal(bought.status, 201);
+
+    const toDemo = await request(base, '/auth/switch', { method: 'POST', cookie: realCookie });
+    assert.equal(toDemo.status, 200);
+    assert.equal(toDemo.data.user.isDemo, true);
+    assert.equal(toDemo.data.switchTarget.isDemo, false);
+    assert.equal(toDemo.data.switchTarget.name, 'Jordan Reyes', 'the real account stays linked for switching back');
+    const demoCookie = toDemo.cookie;
+    assert.notEqual(demoCookie, realCookie);
+    assert.equal((await request(base, '/account', { cookie: realCookie })).status, 401, 'the previous session is replaced');
+
+    const demoAccount = await request(base, '/account', { cookie: demoCookie });
+    assert.ok(demoAccount.data.positions.length > 0, 'the demo keeps its seeded portfolio');
+    assert.ok(!demoAccount.data.positions.some(position => position.symbol === 'TSLA'), 'demo data is not the real account data');
+    const demoTransfers = await request(base, '/transfers/config', { cookie: demoCookie });
+    assert.equal(demoTransfers.data.enabled, false, 'the shared demo cannot use manual transfers');
+
+    const backToReal = await request(base, '/auth/switch', { method: 'POST', cookie: demoCookie });
+    assert.equal(backToReal.status, 200);
+    assert.equal(backToReal.data.user.isDemo, false);
+    assert.equal(backToReal.data.user.email, 'jordan@example.com');
+    assert.equal(backToReal.data.switchTarget.isDemo, true);
+    const realAccount = await request(base, '/account', { cookie: backToReal.cookie });
+    assert.equal(realAccount.data.positions.find(position => position.symbol === 'TSLA').quantity, 2, 'the real account keeps its own holdings');
+
+    const adminLogin = await request(base, '/auth/login', { method: 'POST', body: { email: 'admin@tests.example', password: 'a-long-test-password-123' } });
+    const adminCookie = adminLogin.cookie;
+    const demo = (await request(base, '/admin/users', { cookie: adminCookie })).data.users.find(user => user.isDemo);
+    assert.ok(demo, 'the demo account is labelled for administrators');
+    assert.equal((await request(base, `/admin/users/${demo.id}`, { method: 'PATCH', cookie: adminCookie, body: { action: 'suspend' } })).status, 403);
+    assert.equal((await request(base, `/admin/users/${demo.id}`, { method: 'PATCH', cookie: adminCookie, body: { action: 'adjustCash', amountCents: 100 } })).status, 403);
+    assert.equal((await request(base, '/admin/users', { cookie: adminCookie })).data.users.find(user => user.isDemo).status, 'active');
+    const overview = await request(base, '/admin/overview', { cookie: adminCookie });
+    assert.equal(overview.data.users.realAccounts, overview.data.users.total - 1, 'the demo is excluded from real-account counts');
+  } finally {
+    child.kill('SIGTERM');
+    await new Promise(resolve => { if (child.exitCode !== null) resolve(); else child.once('exit', resolve); });
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});

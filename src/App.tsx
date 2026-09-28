@@ -2,11 +2,12 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowRight, Bell, BriefcaseBusiness, ChevronDown, CircleHelp, Command, Compass,
-  LayoutDashboard, Lightbulb, LogOut, Menu, Plus, ReceiptText, Search, ShieldCheck,
+  LayoutDashboard, Lightbulb, LogOut, Menu, Plus, ReceiptText, Repeat2, Search, ShieldCheck,
   Sparkles, Star, TrendingUp, X,
 } from 'lucide-react';
 import { AppProvider, useApp } from './state/AppContext';
 import { AssetLogo, LoadingBlock } from './components/UI';
+import { AccountSwitchButton, AccountTypeLabel, DemoBanner } from './components/AccountSwitcher';
 import { AuthModal } from './components/AuthModal';
 import { OverviewPage } from './pages/OverviewPage';
 
@@ -69,8 +70,9 @@ function Sidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolean; setMobile
         </div>
         {user ? <div className="sidebar-account">
           <span className="sidebar-avatar">{initials(user.name)}</span>
-          <span className="sidebar-account-copy"><strong>{user.name}</strong><small>{user.role === 'admin' ? 'Administrator' : 'Paper trading account'}</small></span>
+          <span className="sidebar-account-copy"><strong>{user.name}</strong><small>{user.isDemo ? 'Shared demo account' : user.role === 'admin' ? 'Administrator' : 'Paper trading account'}</small></span>
           <button onClick={logout} className="sidebar-logout" title="Sign out" aria-label="Sign out"><LogOut size={17} /></button>
+          {user && <div className="sidebar-account-switch"><AccountSwitchButton /></div>}
         </div> : <button className="sidebar-signin" onClick={() => { openAuth('register'); close(); }}><Plus size={17} /> Create an account <ArrowRight size={16} /></button>}
         <div className="sidebar-legal">© {new Date().getFullYear()} Northstar · Trading simulator</div>
       </div>
@@ -79,7 +81,7 @@ function Sidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolean; setMobile
 }
 
 function Header({ onMenu }: { onMenu: () => void }) {
-  const { user, market, openAuth, signOut } = useApp();
+  const { user, market, openAuth, signOut, switchTarget, switchAccount, switchingAccount } = useApp();
   const location = useLocation();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
@@ -134,9 +136,10 @@ function Header({ onMenu }: { onMenu: () => void }) {
           {market?.notices.length ? market.notices.map(notice => <div className="notice-item" key={notice.id}><div className="notice-indicator"><Sparkles size={15} /></div><div><strong>{notice.title}</strong><p>{notice.body}</p><small>{shortDate(notice.createdAt)}</small></div></div>) : <p className="popover-empty">You're all caught up.</p>}
         </div>}
       </div>
+      <AccountSwitchButton className="account-switch--header" />
       {user ? <div className="popover-anchor" ref={profileRef}>
         <button className="topbar-profile" onClick={() => { setProfileOpen(!profileOpen); setNotificationsOpen(false); }} aria-expanded={profileOpen} aria-label="Account menu"><span className="profile-avatar">{initials(user.name)}</span><ChevronDown size={15} /></button>
-        {profileOpen && <div className="header-popover profile-popover"><div className="profile-popover-head"><strong>{user.name}</strong><small>{user.email}</small></div><button onClick={() => { setProfileOpen(false); navigate('/portfolio'); }}><BriefcaseBusiness size={16} /> My portfolio</button>{user.role === 'admin' && <button onClick={() => { setProfileOpen(false); navigate('/admin'); }}><ShieldCheck size={16} /> Admin console</button>}<button onClick={logout}><LogOut size={16} /> Sign out</button></div>}
+        {profileOpen && <div className="header-popover profile-popover"><div className="profile-popover-head"><strong>{user.name}</strong><small>{user.email}</small><AccountTypeLabel /></div><button onClick={() => { setProfileOpen(false); navigate('/portfolio'); }}><BriefcaseBusiness size={16} /> My portfolio</button>{user.role === 'admin' && <button onClick={() => { setProfileOpen(false); navigate('/admin'); }}><ShieldCheck size={16} /> Admin console</button>}{switchTarget && <button onClick={() => { setProfileOpen(false); void switchAccount(); }} disabled={switchingAccount}>{switchTarget.isDemo ? <Sparkles size={16} /> : <Repeat2 size={16} />}{switchingAccount ? 'Switching…' : switchTarget.isDemo ? 'Switch to demo' : `Switch to ${switchTarget.name.split(' ')[0]}`}</button>}<button onClick={logout}><LogOut size={16} /> Sign out</button></div>}
       </div> : <div className="topbar-auth"><button className="button button--ghost" onClick={() => openAuth('login')}>Sign in</button><button className="button button--primary topbar-getstarted" onClick={() => openAuth('register')}>Get started <ArrowRight size={16} /></button></div>}
     </div>
   </header>;
@@ -153,6 +156,7 @@ function AppShell() {
       <Header onMenu={() => setMobileOpen(true)} />
       <main className="main-content">
         {marketError && !market && <div className="connection-banner"><CircleHelp size={18} /> Unable to reach the server. Check your connection and refresh the page.</div>}
+        <DemoBanner />
         {market && !market.tradingEnabled && <div className="halt-banner"><ShieldCheck size={17} /> Paper trading is temporarily paused by an administrator. Market exploration is still available.</div>}
         <Suspense fallback={<div className="page"><LoadingBlock height={350} /></div>}>
         <Routes>
