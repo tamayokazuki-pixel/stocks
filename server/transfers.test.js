@@ -24,7 +24,7 @@ async function register(base, name) {
 test('enabling manual transfers requires a valid encryption key', () => {
   for (const key of ['', 'not-a-valid-encryption-key']) {
     const result = spawnSync(process.execPath, ['--input-type=module', '-e', "await import('./server/transfers.js')"], {
-      env: { ...process.env, NODE_ENV: 'production', DEMO_MODE: 'false', DATABASE_PATH: ':memory:',
+      env: { ...process.env, NODE_ENV: 'production', DEMO_MODE: 'false', DATABASE_DRIVER: 'sqlite', DATABASE_PATH: ':memory:',
         ADMIN_EMAIL: '', ADMIN_PASSWORD: '', MANUAL_TRANSFERS_ENABLED: 'true', TRANSFER_DETAILS_KEY: key },
       encoding: 'utf8', timeout: 10000,
     });
