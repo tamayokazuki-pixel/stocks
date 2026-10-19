@@ -10,7 +10,14 @@ import pg from 'pg';
 const { Pool, types } = pg;
 types.setTypeParser(20, value => Number(value)); // int8 values are cents, timestamps, and safe app IDs.
 const context = new AsyncLocalStorage();
-const sqliteMode = process.env.DATABASE_DRIVER === 'sqlite';
+const explicitSqlite = process.env.DATABASE_DRIVER === 'sqlite';
+const hasPostgresUrl = Boolean(process.env.DATABASE_URL && String(process.env.DATABASE_URL).trim());
+const isProduction = process.env.NODE_ENV === 'production';
+// In development (and tests) fall back to the local SQLite store when no DATABASE_URL
+// is configured so `npm run dev` works out-of-the-box and new users can register
+// without first provisioning Supabase. Production still requires DATABASE_URL unless
+// the operator has explicitly opted into sqlite.
+const sqliteMode = explicitSqlite || (!hasPostgresUrl && !isProduction);
 let sqlite;
 let pool;
 let sqliteQueue = Promise.resolve();
@@ -20,12 +27,14 @@ export const DEMO_EMAIL_DOMAIN = DEMO_EMAIL.split('@')[1];
 export const demoEnabled = process.env.DEMO_MODE === 'true' || (process.env.DEMO_MODE !== 'false' && process.env.NODE_ENV !== 'production');
 
 if (sqliteMode) {
-  // The existing SQLite implementation remains available for the isolated local test suite.
+  if (!explicitSqlite && !hasPostgresUrl) {
+    console.warn('[db] DATABASE_URL not set — using local SQLite fallback (set DATABASE_URL or DATABASE_DRIVER=sqlite explicitly to silence this).');
+  }
   sqlite = await import('./sqlite-db.js');
   pool = null;
 } else {
   if (!process.env.DATABASE_URL) {
-    throw new Error('DATABASE_URL is required. Set it to the Supabase PostgreSQL connection string.');
+    throw new Error('DATABASE_URL is required in production. Set it to the Supabase PostgreSQL connection string, or set DATABASE_DRIVER=sqlite for local-only development.');
   }
   pool = new Pool({ connectionString: process.env.DATABASE_URL, max: Number(process.env.DB_POOL_SIZE || 10),
     idleTimeoutMillis: 30000, connectionTimeoutMillis: 10000,

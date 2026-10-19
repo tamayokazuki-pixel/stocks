@@ -96,7 +96,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const finishSignIn = (result: AuthResponse) => {
-    queryClient.setQueryData(['auth'], { user: result.user, demoEnabled: authQuery.data?.demoEnabled });
+    clearPrivateData();
+    queryClient.setQueryData(['auth'], result);
     refreshPrivate();
     setAuthMode(null);
     toast.success(`Welcome${result.user?.name ? `, ${result.user.name.split(' ')[0]}` : ''}!`);
