@@ -9,15 +9,21 @@ export class ApiError extends Error {
 
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const method = (options.method || 'GET').toUpperCase();
-  const response = await fetch(`/api${path}`, {
-    ...options,
-    credentials: 'same-origin',
-    headers: {
-      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) ? { 'X-Requested-With': 'northstar' } : {}),
-      ...options.headers,
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(`/api${path}`, {
+      ...options,
+      credentials: 'same-origin',
+      headers: {
+        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) ? { 'X-Requested-With': 'northstar' } : {}),
+        ...options.headers,
+      },
+    });
+  } catch {
+    // DNS failure, refused connection, or the API process not running.
+    throw new ApiError('Unable to reach the server. Check that it is running and try again.', 0);
+  }
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     if (response.status === 401 && !path.startsWith('/auth/')) window.dispatchEvent(new Event('northstar:unauthorized'));
