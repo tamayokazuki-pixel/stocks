@@ -18,7 +18,7 @@ export async function startIsolatedServer(overrides = {}) {
   const base = `http://127.0.0.1:${port}`;
   const child = spawn(process.execPath, ['server/index.js'], {
     cwd: path.resolve(''),
-    env: { ...process.env, NODE_ENV: 'production', DEMO_MODE: 'true', MARKET_PROVIDER: 'demo', DATABASE_PATH: path.join(directory, 'test.sqlite'),
+    env: { ...process.env, NODE_ENV: 'production', DEMO_MODE: 'true', MARKET_PROVIDER: 'demo', DATABASE_DRIVER: 'sqlite', DATABASE_PATH: path.join(directory, 'test.sqlite'),
       ADMIN_EMAIL: 'admin@tests.example', ADMIN_PASSWORD: 'a-long-test-password-123', PORT: String(port),
       MANUAL_TRANSFERS_ENABLED: 'false', TRANSFER_DETAILS_KEY: '', ...overrides },
     stdio: ['ignore', 'pipe', 'pipe'],

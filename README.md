@@ -6,16 +6,26 @@ A responsive stock-market workspace for exploring equities and **paper trading**
 
 ## Run locally
 
-Requires **Node.js 22+** (the server uses Node's built-in `node:sqlite` module) and npm.
+Requires **Node.js 22.13+** and npm. The production backend uses PostgreSQL; Supabase is supported through its PostgreSQL connection string. The SQLite adapter is kept for isolated integration tests and optional local development only.
 
 ```bash
 npm install
+cp .env.example .env
+# Set DATABASE_URL in .env (see the Supabase setup below)
 npm run dev
 ```
 
 Open **http://localhost:5173**. The Express API and Vite-powered React app share the same origin and port, so authentication cookies, the live price stream, and API calls work without cross-origin configuration. Backend code changes require a server restart; Vite hot-reloads frontend changes.
 
-On first run, a local SQLite database is created at `data/northstar.sqlite`. The `data/` directory is Git-ignored. An example environment file is in `.env.example`; copy it to `.env` to customize settings.
+### Connect a Supabase database
+
+1. Create a Supabase project, then open **SQL Editor → New query**. Run the full `supabase/schema.sql` file from this repo once to create the schema and seed the stock catalog.
+2. In **Project Settings → Database → Connection string**, copy the PostgreSQL URI. Use the connection option Supabase recommends for your host. Do not share this URI or commit it.
+3. Paste it into the ignored `.env` file as `DATABASE_URL=...`. The backend uses TLS by default. Do not put the URI or a Supabase secret key in a `VITE_*` variable or browser code.
+4. Set `ADMIN_EMAIL` and a unique `ADMIN_PASSWORD` before first startup if you need an administrator. The server creates that account when it starts.
+5. Start with `npm run dev`. On startup the server applies the schema idempotently and seeds the optional demo/admin accounts. Schema rows are not imported from any previous SQLite database; use a separate migration/export if you need to preserve existing accounts or portfolios.
+
+For SQLite-only local development, explicitly set `DATABASE_DRIVER=sqlite` and optionally `DATABASE_PATH=./data/northstar.sqlite` in `.env`. Do not set `DATABASE_DRIVER=sqlite` in production.
 
 ### Your account vs. the shared demo
 
@@ -86,7 +96,7 @@ for real-money trading or price-sensitive decisions.
 | Admin | Role-protected asset listing/visibility/featured controls and demo reference prices; suspend/reactivate traders; adjust virtual cash; publish/hide announcements; pause/resume all paper trading; audit log. Real accounts are counted separately from the shared demo, which cannot be suspended or funded. |
 | Safety | Password hashes (bcrypt), random server-stored hashed session tokens, HttpOnly/SameSite cookies, request-verification header for mutations, login rate limiting, server-side validation and authorization, and transactional order/account updates. |
 
-Cash is stored as integer cents and positions as whole shares. Cash top-ups and withdrawals are virtual ledger entries; withdrawals cannot consume funds reserved by pending buy orders. Pending buy orders reserve `quantity × limit price`; pending sell orders reserve shares. Hiding an asset cancels its pending orders. Pausing trading stops new orders and pending-order matching until resumed. This is a single-process SQLite application intended as a functional prototype, not a distributed trading engine.
+Cash is stored as integer cents and positions as whole shares. Cash top-ups and withdrawals are virtual ledger entries; withdrawals cannot consume funds reserved by pending buy orders. Pending buy orders reserve `quantity × limit price`; pending sell orders reserve shares. Hiding an asset cancels its pending orders. Pausing trading stops new orders and pending-order matching until resumed. This is a PostgreSQL-backed functional prototype, not a distributed trading engine. It still uses an in-process market-price poller and SSE cache, so run one application instance unless you add shared market-data coordination.
 
 ## Manual bank and wallet transfers
 
@@ -191,9 +201,9 @@ npm run build
 ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD='a-unique-password-at-least-12-characters' NODE_ENV=production npm start
 ```
 
-The production server defaults to port **3000** (`PORT` overrides it). Place it behind HTTPS and use a persistent filesystem for `DATABASE_PATH`. Production sets the session cookie's `Secure` flag. Set **both** `ADMIN_EMAIL` and `ADMIN_PASSWORD` before the first startup to provision an admin account. A configured admin is created only when the email is not already registered. `DEMO_MODE=true` can explicitly enable the shared demo in production, but **do not do this for a public deployment**.
+The production server defaults to port **3000** (`PORT` overrides it) and requires `DATABASE_URL` to connect to PostgreSQL. Place it behind HTTPS. Set **both** `ADMIN_EMAIL` and `ADMIN_PASSWORD` before first startup to provision an admin account. A configured admin is created only when the email is not already registered. `DEMO_MODE=true` can explicitly enable the shared demo in production, but **do not do this for a public deployment**.
 
-For a real production service, replace the prototype's shared/local SQLite setup with appropriate infrastructure; add email verification/password recovery, account protection, monitoring, backups, licensed data feeds, a regulated payments and brokerage integration, and legal/compliance checks before any real trades, deposits, or withdrawals. The cash controls in this prototype never move real money.
+For a real production service, add email verification/password recovery, account protection, monitoring, backups, licensed data feeds, a regulated payments and brokerage integration, and legal/compliance checks before any real trades, deposits, or withdrawals. The cash controls in this prototype never move real money.
 
 ## Checks
 
@@ -208,7 +218,7 @@ The integration tests start their own production-mode server against a temporary
 
 - `src/` — React/TypeScript pages, reusable chart/order components, styles, API client, and session/market state.
 - `server/index.js` — same-origin Express API, validation, authorization, and admin endpoints.
-- `server/db.js` — SQLite schema, local seed data, settings, and transaction helper.
+- `server/db.js` — PostgreSQL pool, startup schema/seeding, async query helpers, and transaction helper; `server/sqlite-db.js` backs isolated SQLite tests.
 - `server/market.js` — quote cache, simulated fallback, SSE updates, and historical chart data.
 - `server/providers.js` — real market-data adapters (Yahoo Finance, Finnhub) and provider selection.
 - `server/orders.js` — buying-power reservations, order filling, positions, and portfolio math.
