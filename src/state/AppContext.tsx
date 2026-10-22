@@ -12,6 +12,7 @@ type AppContextValue = {
   market?: MarketData;
   marketLoading: boolean;
   marketError: boolean;
+  retryMarket: () => void;
   account?: Account;
   accountLoading: boolean;
   orders: Order[];
@@ -88,6 +89,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     queryClient.invalidateQueries({ queryKey: ['cash-transactions'] });
   };
 
+  // Recover from a dropped API connection without a full page reload.
+  const retryMarket = () => {
+    void marketQuery.refetch();
+    void authQuery.refetch();
+  };
+
   // Private data belongs to one account; drop it before another account's data is fetched.
   const clearPrivateData = () => {
     for (const key of ['account', 'orders', 'watchlist', 'cash-transactions', 'transfers', ['admin', 'transfers']]) {
@@ -149,7 +156,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   return <AppContext.Provider value={{
     user, authLoading: authQuery.isLoading, demoEnabled: authQuery.data?.demoEnabled ?? false,
-    market: marketQuery.data, marketLoading: marketQuery.isLoading, marketError: marketQuery.isError,
+    market: marketQuery.data, marketLoading: marketQuery.isLoading, marketError: marketQuery.isError, retryMarket,
     account: user ? accountQuery.data : undefined, accountLoading: accountQuery.isLoading,
     orders: user ? ordersQuery.data?.orders ?? [] : [], ordersLoading: ordersQuery.isLoading,
     watchlist: user ? watchlistQuery.data?.symbols ?? [] : [], watchlistLoading: watchlistQuery.isLoading, authMode,

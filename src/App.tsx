@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowRight, Bell, BriefcaseBusiness, ChevronDown, CircleHelp, Command, Compass,
-  LayoutDashboard, Lightbulb, LogOut, Menu, Plus, ReceiptText, Repeat2, Search, ShieldCheck,
+  LayoutDashboard, Lightbulb, LogOut, Menu, Plus, ReceiptText, RefreshCw, Repeat2, Search, ShieldCheck,
   Sparkles, Star, TrendingUp, X,
 } from 'lucide-react';
 import { AppProvider, useApp } from './state/AppContext';
@@ -147,7 +147,8 @@ function Header({ onMenu }: { onMenu: () => void }) {
 
 function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { market, marketError } = useApp();
+  const { market, marketError, retryMarket } = useApp();
+  const [retrying, setRetrying] = useState(false);
   const location = useLocation();
   useEffect(() => { window.scrollTo({ top: 0, behavior: 'instant' }); }, [location.pathname]);
   return <div className="app-shell">
@@ -155,7 +156,7 @@ function AppShell() {
     <div className="app-main">
       <Header onMenu={() => setMobileOpen(true)} />
       <main className="main-content">
-        {marketError && !market && <div className="connection-banner"><CircleHelp size={18} /> Unable to reach the server. Check your connection and refresh the page.</div>}
+        {marketError && !market && <div className="connection-banner"><CircleHelp size={18} /> <span>Unable to reach the server. Check your connection and try again.</span><button className="button button--outline button--small" disabled={retrying} onClick={() => { setRetrying(true); retryMarket(); setTimeout(() => setRetrying(false), 1500); }}><RefreshCw size={14} /> {retrying ? 'Retrying…' : 'Retry'}</button></div>}
         <DemoBanner />
         {market && !market.tradingEnabled && <div className="halt-banner"><ShieldCheck size={17} /> Paper trading is temporarily paused by an administrator. Market exploration is still available.</div>}
         <Suspense fallback={<div className="page"><LoadingBlock height={350} /></div>}>

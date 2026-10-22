@@ -11,7 +11,8 @@ Requires **Node.js 22.13+** and npm. The production backend uses PostgreSQL; Sup
 ```bash
 npm install
 cp .env.example .env
-# Set DATABASE_URL in .env (see the Supabase setup below)
+# Optional: set DATABASE_URL in .env to use Supabase PostgreSQL (see below).
+# Without it, development automatically uses the local SQLite store in ./data.
 npm run dev
 ```
 
@@ -25,7 +26,7 @@ Open **http://localhost:5173**. The Express API and Vite-powered React app share
 4. Set `ADMIN_EMAIL` and a unique `ADMIN_PASSWORD` before first startup if you need an administrator. The server creates that account when it starts.
 5. Start with `npm run dev`. On startup the server applies the schema idempotently and seeds the optional demo/admin accounts. Schema rows are not imported from any previous SQLite database; use a separate migration/export if you need to preserve existing accounts or portfolios.
 
-For SQLite-only local development, explicitly set `DATABASE_DRIVER=sqlite` and optionally `DATABASE_PATH=./data/northstar.sqlite` in `.env`. Do not set `DATABASE_DRIVER=sqlite` in production.
+Outside production, the server automatically falls back to a file-backed SQLite database at `./data/northstar.sqlite` when `DATABASE_URL` is not set, so registration works on a fresh clone with no setup. Set `DATABASE_DRIVER=sqlite` and optionally `DATABASE_PATH=...` to make that explicit. Production still requires `DATABASE_URL` (or an explicit `DATABASE_DRIVER=sqlite`).
 
 ### Your account vs. the shared demo
 
